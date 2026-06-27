@@ -1,0 +1,52 @@
+{
+  "individuals": [
+    {
+      "study_id": 2911040,
+      "individual_local_identifier": "1094-1094",
+      "individual_taxon_canonical_name": "Phoebastria irrorata",
+      "sensor_type_id": 653,
+      "individual_id": 2911080,
+      "locations": [
+        {
+          "timestamp": 1214238511999,
+          "location_long": -89.6210002,
+          "location_lat": -1.3895437
+        },
+        {
+          "timestamp": 1214238608998,
+          "location_long": -89.6210024,
+          "location_lat": -1.3895456
+        },
+        {
+          "timestamp": 1214244055998,
+          "location_long": -89.6209386,
+          "location_lat": -1.3895534
+        }
+      ]
+    },
+    {
+      "study_id": 2911040,
+      "individual_local_identifier": "1103-1103",
+      "individual_taxon_canonical_name": "Phoebastria irrorata",
+      "sensor_type_id": 653,
+      "individual_id": 2911061,
+      "locations": [
+        {
+          "timestamp": 1214243882998,
+          "location_long": -89.6210501,
+          "location_lat": -1.3896374
+        },
+        {
+          "timestamp": 1214244087998,
+          "location_long": -89.6210141,
+          "location_lat": -1.3896472
+        },
+        {
+          "timestamp": 1214249436999,
+          "location_long": -89.6210671,
+          "location_lat": -1.3896306
+        }
+      ]
+    }
+  ]
+}
