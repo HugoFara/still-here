@@ -1,0 +1,5 @@
+{
+  "locations": [
+    { "timestamp": "2026-06-22T06:00:00Z", "location_lat": 43.3, "location_long": 5.4, "sensor_type": "gps" }
+  ]
+}

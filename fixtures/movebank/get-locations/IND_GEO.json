@@ -1,0 +1,15 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-5.35, 36.13] },
+      "properties": { "timestamp": "2026-06-15T22:00:00Z", "sensor_type": "gps" }
+    },
+    {
+      "type": "Feature",
+      "geometry": { "type": "Point", "coordinates": [-5.61, 35.89] },
+      "properties": { "timestamp": "2026-06-16T05:00:00Z", "sensor_type": "gps" }
+    }
+  ]
+}

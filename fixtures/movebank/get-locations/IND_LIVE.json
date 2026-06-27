@@ -1,0 +1,7 @@
+{
+  "locations": [
+    { "timestamp": "2026-06-21T06:00:00Z", "location_lat": 47.8, "location_long": 8.9, "sensor_type": "gps" },
+    { "timestamp": "2026-06-20T06:00:00Z", "location_lat": 48.1, "location_long": 9.2, "sensor_type": "gps", "quality": 3 },
+    { "timestamp": "2026-06-22T06:00:00Z", "location_lat": 47.5, "location_long": 8.6, "sensor_type": "gnss" }
+  ]
+}

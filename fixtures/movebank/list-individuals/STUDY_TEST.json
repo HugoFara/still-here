@@ -1,0 +1,16 @@
+{
+  "individuals": [
+    {
+      "id": "IND_LIVE",
+      "local_identifier": "DER A1001",
+      "taxon_canonical_name": "Ciconia ciconia",
+      "sex": "f",
+      "animal_nickname": "Aila"
+    },
+    {
+      "id": "IND_NONAME",
+      "local_identifier": "DER A1002",
+      "taxon_canonical_name": "Pandion haliaetus"
+    }
+  ]
+}
