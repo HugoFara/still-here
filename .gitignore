@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.env
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/fixtures-runtime/
+!data/.gitkeep
+.DS_Store

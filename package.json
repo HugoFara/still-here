@@ -1,0 +1,25 @@
+{
+  "name": "continuity-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Continuity-first parasocial animal tracker over the Movebank API. Engineers continuity of attachment across the discontinuity of the data.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server/app.ts",
+    "ingest": "node --disable-warning=ExperimentalWarning src/ingestion/run.ts",
+    "schedule": "node --disable-warning=ExperimentalWarning src/ingestion/scheduler.ts",
+    "seed": "node --disable-warning=ExperimentalWarning src/ingestion/run.ts --seed",
+    "curate": "node --disable-warning=ExperimentalWarning src/roster/report.ts",
+    "live:check": "node --disable-warning=ExperimentalWarning src/movebank/live-check.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^24.0.0"
+  },
+  "license": "MIT"
+}
