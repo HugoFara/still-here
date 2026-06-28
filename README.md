@@ -218,17 +218,25 @@ seven named individuals above. Their downsampled tracks are committed in
   service (validated above); the v2-REST surface and study enumeration need a free Movebank
   account + token. The client already implements the license-acceptance handshake and the
   permission-denied vs no-data distinction.
-- **Verify provenance (the one binding human step)**: the roster is already real (above),
-  but `provenance.verified` is `false`. For each study, open its Movebank page, confirm the
-  exact license + PI + citation/DOI, fill them into `realProvenance()` in `src/roster/seed.ts`,
-  and flip `verified = true`. `npm run curate` ranks the candidates and prints exactly what
-  needs confirming. Owner resolutions (death/tag-removed/study-end) should come from real
-  deployment + mortality reference data via a metadata sync into `repo.setResolution` —
-  the one we apply to the Swiss kite (`study-ended`) is an honest placeholder pending that.
-- **Source the missing species**: the fully-public live set is stork-heavy. There is currently
-  **no** fully-public Northern Bald Ibis or live European osprey, so those families (and the
-  "over Lake Geneva" flagship) need either a licensed study (a human license-acceptance step)
-  or a different fully-public source.
+- **Verify provenance (the one binding human step)**: the roster is real (above) but every
+  `provenance.verified` is `false`. **Verified 2026-06-28**: the public JSON service caps study
+  metadata at 4 fields (`id`, `name`, `suspend_license_terms`, `sensor_type_ids`) — so exact
+  PI/license/citation are **not reachable tokenless**, confirming this is the credentialed step.
+  The one authoritative public source is the **Movebank Data Repository**: it archives
+  *LifeTrack White Stork SW Germany* (Louis, Europa) under **CC0 1.0**, DOI
+  `10.5441/001/1.ck04mn78`, by Fiedler, Flack & Wikelski (MPI-AB) — now recorded in
+  `RESEARCHED_PROVENANCE` in `src/roster/seed.ts`. Caveat kept honest: that CC0 archive
+  (2013–2023) does **not** license the *live* 2026 feed we ingest, which the owner controls —
+  so `verified` stays false until each study's **own page** is confirmed (needs a free Movebank
+  account/token). The other five studies aren't in the repository; their leads (MPI-AB LifeTrack,
+  ICARUS/ELSA, NABU) are recorded as "confirm". Owner resolutions should come from real
+  deployment + mortality metadata via `repo.setResolution`; the Swiss kite's `study-ended` is an
+  honest placeholder pending that.
+- **Source the missing species**: **re-verified 2026-06-28** across all 164 fully-public studies —
+  there are exactly **3 osprey** studies (all with **zero** recent fixes; two Swedish/historical,
+  one US) and **zero** Northern Bald Ibis studies of any kind. So no fully-public live European
+  osprey and no bald ibis exist: those families (and the "over Lake Geneva" flagship) need either
+  a licensed study (a human license-acceptance step) or a non-Movebank source.
 - **Places**: a `Geocoder` seam exists (`src/domain/geocode.ts`) — `GazetteerGeocoder`
   (offline default) and `NominatimGeocoder` (live OSM reverse-geocode, cached + UA per the
   usage policy). In production, resolve names during ingestion so grounding stays pure.

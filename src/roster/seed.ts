@@ -50,6 +50,35 @@ function studyPageUrl(id: string): string {
   return `https://www.movebank.org/cms/webapp?gwt_fragment=page=studies,path=study${id}`;
 }
 
+/**
+ * Researched provenance leads (2026-06-28). The public JSON service caps study
+ * metadata at 4 fields, so exact PI/license/citation are NOT reachable tokenless —
+ * confirming them on each study's Movebank page is the credentialed human step.
+ * Where an authoritative public source exists (the Movebank Data Repository), it
+ * is recorded here. `verified` stays false everywhere: even the archived CC0
+ * snapshot below does not license the *live* 2026 feed we actually ingest, which
+ * the study owner controls — that still needs confirmation on the study page.
+ */
+const RESEARCHED_PROVENANCE: Record<string, Partial<Provenance>> = {
+  // Authoritatively sourced: Movebank Data Repository, "LifeTrack White Stork
+  // SW Germany" (2013–2023), CC0 1.0, DOI 10.5441/001/1.ck04mn78.
+  "21231406": {
+    principalInvestigator: "W. Fiedler, A. Flack, M. Wikelski (Max Planck Institute of Animal Behavior)",
+    license: "CC0 1.0 (archived 2013–2023 data); live-feed license to confirm on the study page",
+    citation:
+      "Fiedler W, Flack A, Wikelski M, et al. Data from: Study 'LifeTrack White Stork SW Germany'. Movebank Data Repository. https://doi.org/10.5441/001/1.ck04mn78",
+    doi: "10.5441/001/1.ck04mn78",
+  },
+  // Same MPI-AB LifeTrack family (not separately archived); confirm on study page.
+  "1562253659": {
+    principalInvestigator: "MPI-AB LifeTrack / Sarralbe (Moselle) site, CRBPO ID_PROG 1093 — confirm",
+  },
+  "3883692006": {
+    principalInvestigator: "Max Planck Institute of Animal Behavior — ICARUS/ELSA project — confirm",
+  },
+  "186178781": { principalInvestigator: "NABU (Naturschutzbund), Mössingen — confirm" },
+};
+
 /** Honest provenance for a real, fully-public study whose attribution is not yet
  *  human-verified. License terms are suspended on Movebank (freely downloadable),
  *  but the exact license + PI + citation live on the study page and MUST be
@@ -63,6 +92,7 @@ function realProvenance(studyId: string, studyName: string): Provenance {
     licenseTermsUrl: studyPageUrl(studyId),
     citation: `Movebank study ${studyId} — confirm citation/DOI on the study page before publishing.`,
     verified: false,
+    ...RESEARCHED_PROVENANCE[studyId],
   };
 }
 
