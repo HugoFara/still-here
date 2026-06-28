@@ -73,6 +73,44 @@ const STATE_LABEL = {
   RESOLVED_UNKNOWN: "Signal lost",
 };
 
+// Per-species reference photo so a follower can recognise the animal at a glance.
+// Each is a freely-licensed Wikimedia Commons image, VENDORED locally under img/
+// (no hotlinking) and keyed by the taxon.commonName the API sends. These are
+// illustrative of the SPECIES — not the individual tracked bird. CC BY / CC BY-SA
+// require attribution, surfaced in the provenance block and listed in img/CREDITS.md.
+const SPECIES_PHOTO = {
+  "White Stork": {
+    img: "img/white-stork.jpg",
+    by: "Andreas Trepte",
+    license: "CC BY-SA 2.5",
+    licenseUrl: "https://creativecommons.org/licenses/by-sa/2.5",
+    source: "https://commons.wikimedia.org/wiki/File:White_Stork.jpg",
+  },
+  "European Turtle Dove": {
+    img: "img/turtle-dove.jpg",
+    by: "Charles J. Sharp",
+    license: "CC BY-SA 4.0",
+    licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0",
+    source: "https://commons.wikimedia.org/wiki/File:Turtle_Dove_(Streptopelia_turtur)_Otmoor.jpg",
+  },
+  "European Honey Buzzard": {
+    img: "img/honey-buzzard.jpg",
+    by: "Andy Morffew",
+    license: "CC BY 2.0",
+    licenseUrl: "https://creativecommons.org/licenses/by/2.0",
+    source: "https://commons.wikimedia.org/wiki/File:Honey_Buzzard.jpg",
+  },
+  "Red Kite": {
+    img: "img/red-kite.jpg",
+    by: "Hansueli Krapf",
+    license: "CC BY-SA 3.0",
+    licenseUrl: "https://creativecommons.org/licenses/by-sa/3.0",
+    source:
+      "https://commons.wikimedia.org/wiki/File:Milvus_milvus_(2011-04-17_Switzerland_Kanton_Schaffhausen_Gennersbrunn_2).jpg",
+  },
+};
+const speciesPhoto = (species) => SPECIES_PHOTO[species] ?? null;
+
 // --------------------------------------------------------------------------
 // roster
 // --------------------------------------------------------------------------
@@ -83,13 +121,20 @@ async function loadRoster() {
   ul.innerHTML = "";
   for (const a of roster) {
     const li = document.createElement("li");
+    const ph = speciesPhoto(a.species);
+    const thumb = ph
+      ? `<img class="rc-thumb" src="${esc(ph.img)}" alt="${esc(a.species)}" loading="lazy" width="48" height="48" />`
+      : `<span class="rc-thumb rc-thumb--empty" aria-hidden="true"></span>`;
     li.innerHTML = `
       <button class="roster-card" data-id="${esc(a.id)}">
-        <span class="nm">${esc(a.name)}</span>
-        <span class="sp">${esc(a.species)} · ${esc(a.latestPlace)}</span>
-        <span class="meta">
-          <span class="pill ${a.state}">${esc(STATE_LABEL[a.state] || a.state)}</span>
-          <span class="sp">${a.totalKm.toLocaleString()} km</span>
+        ${thumb}
+        <span class="rc-info">
+          <span class="nm">${esc(a.name)}</span>
+          <span class="sp">${esc(a.species)} · ${esc(a.latestPlace)}</span>
+          <span class="meta">
+            <span class="pill ${a.state}">${esc(STATE_LABEL[a.state] || a.state)}</span>
+            <span class="sp">${a.totalKm.toLocaleString()} km</span>
+          </span>
         </span>
       </button>`;
     li.querySelector("button").addEventListener("click", () => openAnimal(a.id));
@@ -145,6 +190,19 @@ function renderAnimal(p) {
   const j = p.journey;
   const stage = $("#stage");
 
+  // Species portrait (illustrative, not the individual) — recognise the animal at a glance.
+  const ph = speciesPhoto(p.animal.species);
+  const heroImg = ph
+    ? `<img class="hero-portrait" src="${esc(ph.img)}" alt="${esc(p.animal.species)}" width="96" height="96" />`
+    : "";
+  const photoCredit = ph
+    ? `<br/>Species photo: <a href="${esc(ph.source)}" target="_blank" rel="noopener">${esc(
+        p.animal.species,
+      )}</a> © ${esc(ph.by)} · <a href="${esc(ph.licenseUrl)}" target="_blank" rel="noopener">${esc(
+        ph.license,
+      )}</a> (Wikimedia Commons) — illustrative of the species, not the tracked individual.`
+    : "";
+
   const title = isNarrative ? esc(p.animal.name) : esc(p.animal.species);
   const kicker = isNarrative
     ? esc(p.animal.species)
@@ -184,10 +242,13 @@ function renderAnimal(p) {
     ${continued}
     ${synthetic}
     <div class="hero">
-      <div class="kicker">${kicker}</div>
-      <h1>${title}</h1>
-      ${assignedNote}
-      <div class="ribbon"><span class="pill ${p.status.state}">${esc(STATE_LABEL[p.status.state] || p.status.state)}</span></div>
+      ${heroImg}
+      <div class="hero-text">
+        <div class="kicker">${kicker}</div>
+        <h1>${title}</h1>
+        ${assignedNote}
+        <div class="ribbon"><span class="pill ${p.status.state}">${esc(STATE_LABEL[p.status.state] || p.status.state)}</span></div>
+      </div>
     </div>
     <div class="map-wrap"><div id="journey-map"></div><div class="map-scrubber" id="map-scrubber"></div></div>
     <div class="body">
@@ -204,6 +265,7 @@ function renderAnimal(p) {
         Source: ${esc(p.provenance.studyName)}${p.provenance.principalInvestigator ? " · PI: " + esc(p.provenance.principalInvestigator) : ""}<br/>
         License: ${esc(p.provenance.license)} · ${p.provenance.verified ? "verified" : "provenance unverified"}
         ${p.provenance.citation ? "<br/>Citation: " + esc(p.provenance.citation) : ""}
+        ${photoCredit}
       </div>
     </div>`;
 

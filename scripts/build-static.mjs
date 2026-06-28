@@ -75,6 +75,7 @@ async function main() {
   // 1. Static copies of the web client (app.js runs in static mode via the flag below).
   for (const f of ["app.js", "styles.css"]) await cp(join(WEB, f), join(OUT, f));
   await cp(join(WEB, "vendor"), join(OUT, "vendor"), { recursive: true });
+  await cp(join(WEB, "img"), join(OUT, "img"), { recursive: true });
 
   // 2. index.html — absolute paths -> relative (Pages serves under /<repo>/), and
   //    set the static flag before app.js loads.

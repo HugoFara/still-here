@@ -10,6 +10,13 @@ experiences a **designed narrative resolution and a graceful handoff to a succes
 never a broken map pin. At emotional peaks it offers exactly **one** consequential action
 and **measures whether attachment actually transfers to that action** via a built-in A/B test.
 
+![The follow view: a roster of named, real individuals — each with a species portrait — beside one bird's full journey, scrubbable through time over a real slippy map.](assets/screenshot-follow.png)
+
+> *The follow view. Left: the roster of named, real individuals, each with a species
+> portrait so you know the animal at a glance. Right: one life's journey — Pilgrim, a
+> Honey Buzzard, and her 11,062 km loop to West Africa and back — drawn over a real
+> Leaflet map with a time scrubber to replay the route. [Try it live.](https://hugofara.github.io/still-here/)*
+
 This repo implements the [build brief](./movebank-parasocial-drief.md) as a runnable
 vertical slice. The **server runtime has no npm dependencies**: everything runs on the
 Node ≥ 24 standard library (native TypeScript, `node:sqlite`, `node:test`, the built-in
@@ -113,6 +120,11 @@ be sourced from public data:
 > **Pip** is the lone synthetic entry: a public study cannot revoke your access, so the
 > PERMISSION_LOST mechanism (denial ≠ tag death, §2.3) cannot be sourced from real public data.
 
+The **species portraits** in the roster and follow view are freely-licensed reference photos
+(Wikimedia Commons), **vendored locally** and shown so you can recognise the animal — they
+illustrate the **species**, not the specific tracked individual, and are unrelated to the
+tracking studies. Per-photo credits and licenses: [`src/web/img/CREDITS.md`](./src/web/img/CREDITS.md).
+
 ---
 
 ## Architecture
@@ -201,6 +213,13 @@ near the Black Forest. From the very same study that tracked Europa, over ground
 crossed too, near the Camargue."* All four claims (species, study, shared place, current
 position) are grounded in the fixes. Covered end-to-end in `test/handoff.test.ts`.
 
+![A resolution: Europa's signal is lost, the journey is framed as complete, and the view hands the follower onward to Louis — another White Stork from the same study — with a grounded bridge.](assets/screenshot-handoff.png)
+
+> *A resolution, not a broken pin. Europa's tag fell silent; the view closes the journey
+> honestly and hands the follower onward to Louis — another White Stork, from the very same
+> study, over ground Europa crossed too. The single action ("carry the story forward") and the
+> grounded successor bridge are exactly what the A/B test below measures.*
+
 ---
 
 ## Honesty / grounding (brief §6)
@@ -231,6 +250,12 @@ the bare offer, is what drives diffusion.
 **lift** over the control on `follow → action`. The seeded traffic is constructed with
 *equal* conversion across arms (lift ≈ 1.0) — the demo shows the **instrument**, not a
 fabricated win. **Assume attachment does NOT transfer to the action until the lift is real.**
+
+![The experiment dashboard: per-arm funnels for the individuated-narrative arm and the plain-map control, with a 0.94× narrative lift over control on the seeded baseline.](assets/screenshot-experiment.png)
+
+> *The experiment tab. Per-arm funnels (`follow → view → engage → action_shown →
+> action_taken`) and the narrative lift over control. The seeded snapshot reads **0.94×** —
+> an honest, equal-conversion baseline. The instrument is the point; the win has to be earned.*
 
 ---
 
