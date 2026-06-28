@@ -12,6 +12,7 @@
 
 import type { Arm, ContinuityStatus, FunnelEvent, Individual } from "../domain/types.ts";
 import type { GroundingPacket } from "../narrative/grounding.ts";
+import type { SuccessorConnection } from "../roster/successor.ts";
 import type { EventRecord } from "../store/repository.ts";
 
 // ---------------------------------------------------------------------------
@@ -66,17 +67,26 @@ export function chooseAction(
   individual: Individual,
   status: ContinuityStatus,
   packet: GroundingPacket,
-  opts: { successor?: Individual | null } = {},
+  opts: { successor?: Individual | null; connection?: SuccessorConnection | null } = {},
 ): Action | null {
   // Resolution peak — the exact moment competitors drop the user. Hand off.
   if (status.directives.showAction) {
     const successor = opts.successor ?? null;
     if (successor) {
+      // Carry the grounded connection into the INVITE itself — the artifact that
+      // actually diffuses — so a recruited friend inherits the continuity too.
+      const conn = opts.connection ?? null;
+      const kin = conn && !conn.sameSpecies ? "" : `, another ${successor.taxon.commonName},`;
+      const link = conn?.sharedPlace
+        ? ` — picking up the same flyway near ${conn.sharedPlace}`
+        : conn?.sameStudy
+          ? ` — from the same study`
+          : "";
       return {
         kind: "recruit-follower",
         reason: "resolution",
         label: `Follow ${successor.name} with a friend`,
-        shareText: `${individual.name}'s journey came to a close. I'm following ${successor.name}, another ${successor.taxon.commonName}, next — come with me?`,
+        shareText: `${individual.name}'s journey came to a close. I'm following ${successor.name}${kin} next${link} — come with me?`,
         targetIndividualId: successor.id,
         targetName: successor.name,
       };

@@ -40,7 +40,7 @@ npm start
 # → open http://localhost:8787
 
 # other commands
-npm test          # 65 unit/integration tests (all pure modules + client fixtures)
+npm test          # 69 unit/integration tests (all pure modules + client fixtures)
 npm run typecheck # tsc --noEmit (strict); dev-only deps
 npm run curate    # print the ranked curation report with provenance (§4 deliverable)
 npm run ingest    # re-run ingestion against existing fixtures (a few×/day in prod)
@@ -146,6 +146,34 @@ states and is asserted in tests — a quiet tag is "resting / out of signal", ne
 
 ---
 
+## The successor handoff — the differentiator (brief §5)
+
+The moment a tag resolves is where competitors drop the user and where this product does
+its real work: it **transfers the attachment** instead of ending it. A resolution doesn't
+just name a "next animal" — it builds a **grounded bridge** (`src/roster/successor.ts`,
+pure):
+
+- `pickSuccessor` prefers the **same species**, then the same theme; among equally-kindred
+  birds it softly prefers one that is genuinely **LIVE** over a live-eligible-but-quiet one,
+  so the follower is handed something vital — never enough to override kinship (a quiet
+  stork still beats a live dove for a stork's follower).
+- `describeConnection` computes, from real data only, *why this successor*: same species?
+  same Movebank study? a **named place both tracks pass near**? where the successor is right
+  now? `buildHandoffBridge` turns those facts into one warm, grounded sentence and **never
+  claims a link the data lacks**.
+- The invite (`shareText`) — the artifact that actually diffuses — inherits the same
+  grounded connection, so a recruited friend arrives already inside the continuity.
+- Clicking the handoff carries the thread: the successor view opens with a *"Continuing from
+  Europa's journey"* ribbon (`continuedFrom`), so a handoff reads as continuation, not a
+  fresh start.
+
+On the real roster this produces, e.g., *"Louis — another White Stork — is still on the move
+near the Black Forest. From the very same study that tracked Europa, over ground Europa
+crossed too, near the Camargue."* All four claims (species, study, shared place, current
+position) are grounded in the fixes. Covered end-to-end in `test/handoff.test.ts`.
+
+---
+
 ## Honesty / grounding (brief §6)
 
 The narrative generator can only speak facts present in a **grounding packet**
@@ -163,9 +191,11 @@ are cached keyed to the fix batch (cost + consistency).
 
 Success is a **behavior, not a feeling**. At emotional peaks (a landmark crossed, or a
 resolution) the product surfaces **exactly one** action — recruit a follower (or hand off
-to a successor). The control arm sees a **plain map** with no individuated narrative; the
-treatment arm sees the full individuated story. Both arms get the same action so the
-experiment isolates individuation.
+to a successor). The control arm sees a **plain map** with no individuated narrative and a
+bare *next-animal* handoff; the treatment arm sees the full individuated story and the
+**grounded handoff bridge**. Both arms get the same single action and the same successor
+target, so the experiment isolates whether individuation (narrative + grounded bridge), not
+the bare offer, is what drives diffusion.
 
 `GET /api/experiment` (and the **Experiment** tab in the UI) reports the funnel
 `follow → view → engage → action_shown → action_taken` per arm, plus the narrative arm's

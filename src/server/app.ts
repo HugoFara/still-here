@@ -78,15 +78,20 @@ export function startServer(port: number): { close: () => void } {
       if (req.method === "GET" && path === "/api/animal") {
         const id = url.searchParams.get("id") ?? "";
         const session = url.searchParams.get("session") ?? "anon";
-        const payload = await service.getAnimal(id, session, now);
+        const from = url.searchParams.get("from"); // set when arriving via a handoff
+        const payload = await service.getAnimal(id, session, now, from);
         if (!payload) return sendJson(res, 404, { error: "not found or retired" });
         return sendJson(res, 200, payload);
       }
 
       if (req.method === "POST" && path === "/api/follow") {
-        const body = (await readBody(req)) as { sessionId?: string; individualId?: string };
+        const body = (await readBody(req)) as {
+          sessionId?: string;
+          individualId?: string;
+          meta?: Record<string, unknown>;
+        };
         if (!body.sessionId || !body.individualId) return sendJson(res, 400, { error: "missing fields" });
-        const arm = service.recordEvent(body.sessionId, body.individualId, "follow", now);
+        const arm = service.recordEvent(body.sessionId, body.individualId, "follow", now, body.meta);
         return sendJson(res, 200, { ok: true, arm });
       }
 

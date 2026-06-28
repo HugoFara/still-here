@@ -10,7 +10,13 @@ import { boundingBox, type BBox } from "../domain/geo.ts";
 import { describeLocation } from "../domain/places.ts";
 import { buildGroundingPacket } from "../narrative/grounding.ts";
 import { buildSignals, scoreCandidate } from "../roster/scoring.ts";
-import { pickSuccessor, type SuccessorCandidate } from "../roster/successor.ts";
+import {
+  buildHandoffBridge,
+  describeConnection,
+  pickSuccessor,
+  type SuccessorCandidate,
+  type SuccessorConnection,
+} from "../roster/successor.ts";
 import { assignArm, chooseAction, type Action } from "../experiment/ab.ts";
 import type { NarrativeGenerator } from "../narrative/generator.ts";
 import type { Repository } from "../store/repository.ts";
@@ -67,7 +73,25 @@ export interface AnimalPayload {
     landmarkCrossed: string | null;
   };
   action: Action | null;
-  successor: { id: string; name: string; species: string } | null;
+  /**
+   * The successor handoff — the differentiator. Carries a GROUNDED bridge so the
+   * relationship transfers ("another White Stork, on the same flyway"), not just
+   * a name. Present only at a resolution (offerSuccessor).
+   */
+  successor: {
+    id: string;
+    name: string;
+    species: string;
+    /** One grounded sentence linking the resolved animal to this successor. */
+    bridge: string;
+    connection: SuccessorConnection;
+  } | null;
+  /**
+   * When the follower arrived here from a resolved animal's handoff, the animal
+   * they came from — so the view can acknowledge the thread instead of severing
+   * it. The continuity of attachment made literal (brief §5).
+   */
+  continuedFrom: { id: string; name: string; species: string } | null;
 }
 
 export class RosterService {
@@ -124,13 +148,21 @@ export class RosterService {
         theme: "european-migratory-bird",
         liveEligible: score.liveEligible,
         score: score.score,
+        state: status?.state,
       });
     }
     return out;
   }
 
-  /** Full follow-view payload. Records a 'view' (and 'action_shown' if shown). */
-  async getAnimal(id: string, sessionId: string, now: number): Promise<AnimalPayload | null> {
+  /** Full follow-view payload. Records a 'view' (and 'action_shown' if shown).
+   *  `fromId` is set when the follower arrived via a handoff, so the view can
+   *  acknowledge the thread it is continuing. */
+  async getAnimal(
+    id: string,
+    sessionId: string,
+    now: number,
+    fromId?: string | null,
+  ): Promise<AnimalPayload | null> {
     const ind = this.repo.getIndividual(id);
     if (!ind) return null;
     const status = this.repo.getStatus(id);
@@ -152,13 +184,35 @@ export class RosterService {
     const packet = buildGroundingPacket(ind, fixes, status, ctx);
     const gen = await this.generator.generate(ind, fixes, status, ctx);
 
-    // Successor handoff for resolutions.
+    // Successor handoff for resolutions — picked, then GROUNDED with a real
+    // connection so attachment transfers rather than evaporating.
     let successor: Individual | null = null;
+    let connection: SuccessorConnection | null = null;
     if (status.directives.offerSuccessor) {
       successor = pickSuccessor(ind, "european-migratory-bird", this.successorCandidates(now));
+      if (successor) {
+        const succStatus = this.repo.getStatus(successor.id);
+        connection = describeConnection(
+          ind,
+          fixes,
+          successor,
+          this.repo.getFixes(successor.id),
+          succStatus?.state ?? "LIVE",
+        );
+      }
     }
 
-    const action = chooseAction(ind, status, packet, { successor });
+    const action = chooseAction(ind, status, packet, { successor, connection });
+
+    // The animal this follower was handed from, named so the view can carry the
+    // thread. Never a retired animal (resolutions are visible by design).
+    let continuedFrom: AnimalPayload["continuedFrom"] = null;
+    if (fromId && fromId !== id) {
+      const from = this.repo.getIndividual(fromId);
+      if (from) {
+        continuedFrom = { id: from.id, name: from.name, species: from.taxon.commonName };
+      }
+    }
 
     // Instrument: a view, plus action_shown when an action is presented.
     this.repo.recordEvent({ sessionId, individualId: id, arm, type: "view", ts: now });
@@ -204,9 +258,17 @@ export class RosterService {
         landmarkCrossed: packet.landmarkCrossed,
       },
       action,
-      successor: successor
-        ? { id: successor.id, name: successor.name, species: successor.taxon.commonName }
-        : null,
+      successor:
+        successor && connection
+          ? {
+              id: successor.id,
+              name: successor.name,
+              species: successor.taxon.commonName,
+              bridge: buildHandoffBridge(ind.name, successor, connection),
+              connection,
+            }
+          : null,
+      continuedFrom,
     };
   }
 

@@ -98,11 +98,14 @@ nav { display: flex; gap: 0.4rem; }
 /* ---- successor + provenance ---- */
 .successor { border: 1px solid var(--line); border-radius: 12px; padding: 0.9rem 1rem; margin: 0.4rem 0 1rem; background: var(--paper); }
 .successor .nm { font-family: var(--serif); font-size: 1.1rem; }
-.successor button { font: inherit; cursor: pointer; margin-top: 0.5rem; border: 1px solid var(--ink); background: transparent; border-radius: 999px; padding: 0.4rem 0.9rem; }
+.successor .bridge { font-family: var(--serif); font-size: 1.04rem; line-height: 1.5; margin: 0.35rem 0 0; color: var(--ink); }
+.successor button { font: inherit; cursor: pointer; margin-top: 0.6rem; border: 1px solid var(--ink); background: transparent; border-radius: 999px; padding: 0.4rem 0.9rem; }
 
 .provenance { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 0.9rem; }
 .synthetic-banner { font-size: 0.78rem; color: #7a5a1f; background: color-mix(in srgb, var(--amber) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--amber) 35%, var(--line)); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0.8rem 1.6rem 0; }
 .unverified-banner { font-size: 0.78rem; color: #4a5b50; background: color-mix(in srgb, var(--green, #4f6f52) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--green, #4f6f52) 28%, var(--line)); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0.8rem 1.6rem 0; }
+.continued-banner { font-size: 0.82rem; color: var(--muted); background: color-mix(in srgb, var(--ink) 4%, var(--card)); border: 1px solid var(--line); border-left: 3px solid color-mix(in srgb, var(--green, #4f6f52) 55%, var(--line)); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0.8rem 1.6rem 0; }
+.continued-banner strong { font-family: var(--serif); color: var(--ink); }
 
 /* ---- experiment ---- */
 .experiment { max-width: 880px; margin: 0 auto; padding: 1.8rem 1.6rem; }

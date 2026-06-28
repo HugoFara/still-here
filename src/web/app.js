@@ -49,7 +49,9 @@ async function loadRoster() {
 
 let engageTimer = null;
 
-async function openAnimal(id) {
+// `fromId` is set only when this open is a successor handoff — it lets the
+// server attribute the follow to the bridge and lets the view carry the thread.
+async function openAnimal(id, fromId = null) {
   document.querySelectorAll(".roster-card").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.id === id),
   );
@@ -60,11 +62,18 @@ async function openAnimal(id) {
     fetch("/api/follow", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId: session, individualId: id }),
+      body: JSON.stringify({
+        sessionId: session,
+        individualId: id,
+        ...(fromId ? { meta: { from: fromId } } : {}),
+      }),
     });
   }
 
-  const res = await fetch(`/api/animal?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}`);
+  const fromQ = fromId ? `&from=${encodeURIComponent(fromId)}` : "";
+  const res = await fetch(
+    `/api/animal?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}${fromQ}`,
+  );
   if (!res.ok) {
     $("#stage").innerHTML = `<div class="empty">This animal is no longer available.</div>`;
     return;
@@ -120,7 +129,14 @@ function renderAnimal(p) {
   }
   const synthetic = banner;
 
+  // The thread carried forward: acknowledge the animal we were handed from, so a
+  // handoff feels like continuation, not a fresh start (brief §5).
+  const continued = p.continuedFrom
+    ? `<div class="continued-banner">Continuing from <strong>${esc(p.continuedFrom.name)}</strong>'s journey — ${esc(p.continuedFrom.species)}.</div>`
+    : "";
+
   stage.innerHTML = `
+    ${continued}
     ${synthetic}
     <div class="hero">
       <div class="kicker">${kicker}</div>
@@ -147,7 +163,7 @@ function renderAnimal(p) {
     </div>`;
 
   if (p.action) renderAction(p.action, p.animal.id);
-  if (p.successor) renderSuccessor(p.successor);
+  if (p.successor) renderSuccessor(p.successor, p.animal.id, isNarrative);
 }
 
 function renderAction(action, individualId) {
@@ -180,16 +196,25 @@ function renderAction(action, individualId) {
   });
 }
 
-function renderSuccessor(s) {
+// The handoff. In the narrative arm this is the grounded bridge — *why* this
+// successor preserves the relationship. The control arm gets the bare next-animal
+// fact, so the experiment isolates whether the individuated continuity matters.
+// `fromId` is the resolved animal we're handing off FROM — carried so the
+// successor view can acknowledge the thread.
+function renderSuccessor(s, fromId, isNarrative) {
   const slot = $("#successor-slot");
+  const body = isNarrative
+    ? `<div class="sp">When one journey ends, another is already moving.</div>
+       <p class="bridge">${esc(s.bridge)}</p>`
+    : `<div class="sp">Next live animal</div>
+       <div class="nm">${esc(s.name)}</div>
+       <div class="sp">${esc(s.species)}</div>`;
   slot.innerHTML = `
     <div class="successor">
-      <div class="sp">When one story ends, another is already moving.</div>
-      <div class="nm">Follow ${esc(s.name)}</div>
-      <div class="sp">${esc(s.species)}</div>
+      ${body}
       <button data-id="${esc(s.id)}">Follow ${esc(s.name)} →</button>
     </div>`;
-  slot.querySelector("button").addEventListener("click", () => openAnimal(s.id));
+  slot.querySelector("button").addEventListener("click", () => openAnimal(s.id, fromId));
 }
 
 // --------------------------------------------------------------------------
