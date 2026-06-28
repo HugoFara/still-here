@@ -73,15 +73,15 @@ be sourced from public data:
 
 ¹ Name **assigned by us** (no personal name in the study record) and labelled as such in the UI.
 
-> ⚠︎ **Honesty.** Every track above except **Pip** is a **real, unmodified Movebank
-> snapshot** of a named individual from a fully-public study (license terms suspended),
-> captured 2026-06-26 and downsampled for the offline build (`src/roster/real-tracks.generated.ts`;
-> live ingestion reads full resolution). Their continuity states are **not engineered** — they
-> fall out of each bird's real last-fix recency. But `provenance.verified` is still **false**:
-> the exact license, PI and citation must be confirmed on each study's Movebank page before any
-> of them is published as vetted — the binding human step (see "Going live"). The UI shows a
-> "provenance pending verification" banner accordingly, kept **distinct** from the synthetic
-> warning. **Pip** is the lone synthetic entry: a public study cannot revoke your access, so the
+> ⚠︎ **Honesty.** Every track above except **Pip** is a **real, unmodified Movebank snapshot**
+> of a named individual from a fully-public study, captured 2026-06-26 and downsampled for the
+> offline build (`src/roster/real-tracks.generated.ts`; live ingestion reads full resolution).
+> Their continuity states are **not engineered** — they fall out of each bird's real last-fix
+> recency. Provenance is **verified** (2026-06-28, via the account holder's authenticated Movebank
+> `direct-read`): each carries its owner-set license, PI and citation in `CONFIRMED_PROVENANCE`.
+> Licenses **differ** — CC0 (Sarralbe), CC BY (the other storks, dove, raptor) and **CC BY-NC**
+> for the Red Kite — so attribution is shown per study and the kite is **non-commercial** use only.
+> **Pip** is the lone synthetic entry: a public study cannot revoke your access, so the
 > PERMISSION_LOST mechanism (denial ≠ tag death, §2.3) cannot be sourced from real public data.
 
 ---
@@ -218,20 +218,16 @@ seven named individuals above. Their downsampled tracks are committed in
   service (validated above); the v2-REST surface and study enumeration need a free Movebank
   account + token. The client already implements the license-acceptance handshake and the
   permission-denied vs no-data distinction.
-- **Verify provenance (the one binding human step)**: the roster is real (above) but every
-  `provenance.verified` is `false`. **Verified 2026-06-28**: the public JSON service caps study
-  metadata at 4 fields (`id`, `name`, `suspend_license_terms`, `sensor_type_ids`) — so exact
-  PI/license/citation are **not reachable tokenless**, confirming this is the credentialed step.
-  The one authoritative public source is the **Movebank Data Repository**: it archives
-  *LifeTrack White Stork SW Germany* (Louis, Europa) under **CC0 1.0**, DOI
-  `10.5441/001/1.ck04mn78`, by Fiedler, Flack & Wikelski (MPI-AB) — now recorded in
-  `RESEARCHED_PROVENANCE` in `src/roster/seed.ts`. Caveat kept honest: that CC0 archive
-  (2013–2023) does **not** license the *live* 2026 feed we ingest, which the owner controls —
-  so `verified` stays false until each study's **own page** is confirmed (needs a free Movebank
-  account/token). The other five studies aren't in the repository; their leads (MPI-AB LifeTrack,
-  ICARUS/ELSA, NABU) are recorded as "confirm". Owner resolutions should come from real
-  deployment + mortality metadata via `repo.setResolution`; the Swiss kite's `study-ended` is an
-  honest placeholder pending that.
+- **Provenance — done (2026-06-28).** With a free Movebank account, the authenticated
+  `direct-read` service returns each study's owner-set license/PI/citation (the public JSON
+  service alone caps study metadata at 4 fields, so this genuinely needs the credentialed step).
+  All seven real individuals are now `provenance.verified = true` — see `CONFIRMED_PROVENANCE` in
+  `src/roster/seed.ts`. Confirmed licenses: **CC0** (Sarralbe — Fiedler); **CC BY** (SW Germany —
+  Wikelski, DOI `10.5441/001/1.ck04mn78_2`; Habitrack dove — Jiguet; NABU Mössingen —
+  Schmidt-Rothmund; ELSA 2.0 — Fiedler); **CC BY-NC** (Red Kite — Scherler, **non-commercial**).
+  Owner resolutions (death/tag-removed/study-end) should still come from real deployment +
+  mortality metadata via `repo.setResolution`; the Swiss kite's `study-ended` is an honest
+  placeholder pending that.
 - **Source the missing species**: **re-verified 2026-06-28** across all 164 fully-public studies —
   there are exactly **3 osprey** studies (all with **zero** recent fixes; two Swedish/historical,
   one US) and **zero** Northern Bald Ibis studies of any kind. So no fully-public live European

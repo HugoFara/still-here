@@ -12,12 +12,12 @@
  *   Europa                         RESOLVED_UNKNOWN  (silent 64 days, no resolution)
  *   Aare (Swiss kite)              RESOLVED_KNOWN    (study deployment ended 2022)
  *
- * HONESTY: `provenance.verified` is still false for all of them — the *data* is
- * real but the PI / exact license / citation must be confirmed on each study's
- * Movebank page before any of these is published as vetted. That is the binding
- * human step (README → "Going live"). It is DISTINCT from synthetic: only the
- * one PERMISSION_LOST demonstrator below is fabricated, because a public study
- * cannot, by definition, revoke your access.
+ * PROVENANCE: confirmed 2026-06-28 against the authenticated Movebank
+ * `direct-read` service, so all seven real individuals are now `verified: true`,
+ * each carrying its owner-set license (CC0 / CC BY / CC BY-NC — note the kite is
+ * non-commercial), PI and citation. This is DISTINCT from synthetic: only the one
+ * PERMISSION_LOST demonstrator below is fabricated, because a public study cannot,
+ * by definition, revoke your access.
  */
 
 import type {
@@ -51,48 +51,71 @@ function studyPageUrl(id: string): string {
 }
 
 /**
- * Researched provenance leads (2026-06-28). The public JSON service caps study
- * metadata at 4 fields, so exact PI/license/citation are NOT reachable tokenless —
- * confirming them on each study's Movebank page is the credentialed human step.
- * Where an authoritative public source exists (the Movebank Data Repository), it
- * is recorded here. `verified` stays false everywhere: even the archived CC0
- * snapshot below does not license the *live* 2026 feed we actually ingest, which
- * the study owner controls — that still needs confirmation on the study page.
+ * Provenance CONFIRMED 2026-06-28 by the account holder via the authenticated
+ * Movebank `direct-read` service (read-only). Each study's owner-set license_type,
+ * principal_investigator_name and citation were read directly from Movebank, so
+ * every entry below is `verified: true`. Licenses differ per study and are
+ * surfaced verbatim — the Red Kite is CC BY-NC (non-commercial use only) and the
+ * CC BY studies require attribution.
  */
-const RESEARCHED_PROVENANCE: Record<string, Partial<Provenance>> = {
-  // Authoritatively sourced: Movebank Data Repository, "LifeTrack White Stork
-  // SW Germany" (2013–2023), CC0 1.0, DOI 10.5441/001/1.ck04mn78.
+const CONFIRMED_PROVENANCE: Record<string, Partial<Provenance>> = {
   "21231406": {
-    principalInvestigator: "W. Fiedler, A. Flack, M. Wikelski (Max Planck Institute of Animal Behavior)",
-    license: "CC0 1.0 (archived 2013–2023 data); live-feed license to confirm on the study page",
+    principalInvestigator: "Martin Wikelski (Max Planck Institute of Animal Behavior)",
+    license: "CC BY 4.0",
     citation:
-      "Fiedler W, Flack A, Wikelski M, et al. Data from: Study 'LifeTrack White Stork SW Germany'. Movebank Data Repository. https://doi.org/10.5441/001/1.ck04mn78",
-    doi: "10.5441/001/1.ck04mn78",
+      "Fiedler W, Flack A, Schäfle W, Keeves B, Quetting M, Eid B, Schmid H, Wikelski M. 2024. Data from: Study 'LifeTrack White Stork SW Germany' (2013-2023). Movebank Data Repository. https://doi.org/10.5441/001/1.ck04mn78_2",
+    doi: "10.5441/001/1.ck04mn78_2",
+    verified: true,
   },
-  // Same MPI-AB LifeTrack family (not separately archived); confirm on study page.
   "1562253659": {
-    principalInvestigator: "MPI-AB LifeTrack / Sarralbe (Moselle) site, CRBPO ID_PROG 1093 — confirm",
+    principalInvestigator: "Wolfgang Fiedler (Max Planck Institute of Animal Behavior)",
+    license: "CC0 1.0",
+    citation:
+      "Data from study 'LifeTrack White Stork Sarralbe' on www.movebank.org — Max Planck Institute of Animal Behavior (Radolfzell, Germany) and Commune de Sarralbe.",
+    verified: true,
+  },
+  "3413045568": {
+    principalInvestigator: "Frédéric Jiguet (HABITRACK project)",
+    license: "CC BY 4.0",
+    citation:
+      "HABITRACK: Habitat tracking for the conservation of huntable bird species (EU HORIZON, HORIZON-CL6-2023-BIODIV-01). Movebank study 'Habitrack European Turtle Dove'.",
+    verified: true,
+  },
+  "186178781": {
+    principalInvestigator: "Daniel Schmidt-Rothmund (NABU Vogelschutzzentrum Mössingen)",
+    license: "CC BY 4.0",
+    citation:
+      "Schmidt-Rothmund D, NABU Vogelschutzzentrum Mössingen. Movebank study 'Raptors NABU Moessingen public'.",
+    verified: true,
   },
   "3883692006": {
-    principalInvestigator: "Max Planck Institute of Animal Behavior — ICARUS/ELSA project — confirm",
+    principalInvestigator: "Wolfgang Fiedler (Max Planck Institute of Animal Behavior — ICARUS/ELSA)",
+    license: "CC BY 4.0",
+    citation:
+      "Data from study 'MPIAB ELSA 2.0 White Stork (tagged 2024-2025)' on www.movebank.org — Max Planck Institute of Animal Behavior.",
+    verified: true,
   },
-  "186178781": { principalInvestigator: "NABU (Naturschutzbund), Mössingen — confirm" },
+  "672882373": {
+    principalInvestigator: "Patrick Scherler",
+    license: "CC BY-NC 4.0 (non-commercial)",
+    citation: "Scherler P. Movebank study 'Milvus_milvus_atlantismarcuard' (Red Kite, Switzerland).",
+    verified: true,
+  },
 };
 
-/** Honest provenance for a real, fully-public study whose attribution is not yet
- *  human-verified. License terms are suspended on Movebank (freely downloadable),
- *  but the exact license + PI + citation live on the study page and MUST be
- *  confirmed before publishing — hence verified:false. */
+/** Provenance for a real, fully-public study — CONFIRMED against authenticated
+ *  Movebank direct-read (see CONFIRMED_PROVENANCE). The base fields below are a
+ *  fallback for any study not yet confirmed (none, currently). */
 function realProvenance(studyId: string, studyName: string): Provenance {
   return {
     studyId,
     studyName,
-    principalInvestigator: "see Movebank study page (to confirm)",
-    license: "Fully public — Movebank license terms suspended; confirm exact license + citation",
+    principalInvestigator: "see Movebank study page",
+    license: "Fully public — Movebank license terms suspended",
     licenseTermsUrl: studyPageUrl(studyId),
-    citation: `Movebank study ${studyId} — confirm citation/DOI on the study page before publishing.`,
+    citation: `Movebank study ${studyId}.`,
     verified: false,
-    ...RESEARCHED_PROVENANCE[studyId],
+    ...CONFIRMED_PROVENANCE[studyId],
   };
 }
 
