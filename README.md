@@ -15,7 +15,9 @@ and **measures whether attachment actually transfers to that action** via a buil
 > *The follow view. Left: the roster of named, real individuals, each with a species
 > portrait so you know the animal at a glance. Right: one life's journey — Pilgrim, a
 > Honey Buzzard, and her 11,062 km loop to West Africa and back — drawn over a real
-> Leaflet map with a time scrubber to replay the route. [Try it live.](https://hugofara.github.io/still-here/)*
+> Leaflet map. The scrubber runs on a **fixed time scale** (months read evenly, not
+> warped by GPS-fix spacing) and surfaces the season and the live ERA5 temperature at
+> each point along the way. [Try it live.](https://hugofara.github.io/still-here/)*
 
 This repo implements the [build brief](./movebank-parasocial-drief.md) as a runnable
 vertical slice. The **server runtime has no npm dependencies**: everything runs on the
@@ -124,6 +126,13 @@ The **species portraits** in the roster and follow view are freely-licensed refe
 (Wikimedia Commons), **vendored locally** and shown so you can recognise the animal — they
 illustrate the **species**, not the specific tracked individual, and are unrelated to the
 tracking studies. Per-photo credits and licenses: [`src/web/img/CREDITS.md`](./src/web/img/CREDITS.md).
+
+The scrubber's **local-conditions** line (season + temperature) follows the same honesty rule.
+**Season** is *derived* from each fix's date and hemisphere — no data, no estimation. **Temperature**
+is *real*: ERA5 daily-mean air temperature from the [Open-Meteo](https://open-meteo.com/) archive
+(CC BY 4.0), fetched live for the fix's **own** place and date. It is **not** part of the Movebank
+tracking data, is labelled as such in the UI, and degrades to "—" offline or for dates the reanalysis
+has not yet filled.
 
 ---
 

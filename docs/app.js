@@ -203,6 +203,12 @@ function renderAnimal(p) {
       )}</a> (Wikimedia Commons) — illustrative of the species, not the tracked individual.`
     : "";
 
+  // Only credit the live weather source when the journey actually drives a scrubber.
+  const hasScrub = Array.isArray(j.times) && (j.points?.length ?? 0) >= 3;
+  const condCredit = hasScrub
+    ? `<br/>Local conditions: season derived from each fix's date &amp; hemisphere; daily-mean air temperature from <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> ERA5 reanalysis (<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>) at the fix's own place &amp; date — fetched live, not part of the tracking data.`
+    : "";
+
   const title = isNarrative ? esc(p.animal.name) : esc(p.animal.species);
   const kicker = isNarrative
     ? esc(p.animal.species)
@@ -266,6 +272,7 @@ function renderAnimal(p) {
         License: ${esc(p.provenance.license)} · ${p.provenance.verified ? "verified" : "provenance unverified"}
         ${p.provenance.citation ? "<br/>Citation: " + esc(p.provenance.citation) : ""}
         ${photoCredit}
+        ${condCredit}
       </div>
     </div>`;
 
@@ -348,6 +355,63 @@ function haversineKm(a, b) {
     Math.sin(dLat / 2) ** 2 +
     Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2;
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+// --------------------------------------------------------------------------
+// Local conditions for the scrubbed moment — an honest "what was it like there,
+// then?" readout. Season is DERIVED from the fix's date + hemisphere (no data
+// needed, no estimation). Temperature is REAL: ERA5 daily-mean 2 m air
+// temperature via Open-Meteo's archive API, fetched live for the fix's OWN place
+// and date. It is NOT part of the Movebank tracking data and is labelled as such;
+// offline (or for dates the reanalysis hasn't filled yet) it degrades to "—".
+// --------------------------------------------------------------------------
+const SEASONS = [
+  { name: "Winter", ico: "❄️" },
+  { name: "Spring", ico: "🌱" },
+  { name: "Summer", ico: "☀️" },
+  { name: "Autumn", ico: "🍂" },
+];
+// Meteorological season from the fix's UTC month, flipped below the equator.
+function seasonAt(time, lat) {
+  const m = new Date(time).getUTCMonth();
+  let idx = Math.floor(((m + 1) % 12) / 3); // 0 winter · 1 spring · 2 summer · 3 autumn
+  if (lat < 0) idx = (idx + 2) % 4; // southern hemisphere is offset by two
+  return { ...SEASONS[idx], hemi: lat >= 0 ? "N" : "S" };
+}
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const ymdUTC = (t) => {
+  const d = new Date(t);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+};
+
+// key (lat,lon rounded + date) -> °C number | null (known-missing) | Promise
+// (in flight). Dedupes and caches, so scrubbing back and forth never re-hits the
+// network for a cell already seen.
+const tempCache = new Map();
+function dailyMeanTempC(lat, lon, time) {
+  const ymd = ymdUTC(time);
+  const key = `${lat.toFixed(2)},${lon.toFixed(2)},${ymd}`;
+  const hit = tempCache.get(key);
+  if (hit !== undefined) return hit; // number | null | Promise
+  const url =
+    `https://archive-api.open-meteo.com/v1/archive?latitude=${lat.toFixed(3)}` +
+    `&longitude=${lon.toFixed(3)}&start_date=${ymd}&end_date=${ymd}` +
+    `&daily=temperature_2m_mean&timezone=UTC`;
+  const p = fetch(url)
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => {
+      const arr = j && j.daily && j.daily.temperature_2m_mean;
+      const v = Array.isArray(arr) && typeof arr[0] === "number" ? arr[0] : null;
+      tempCache.set(key, v);
+      return v;
+    })
+    .catch(() => {
+      tempCache.set(key, null);
+      return null;
+    });
+  tempCache.set(key, p);
+  return p;
 }
 
 let journeyMap = null; // current Leaflet instance — torn down before each remount
@@ -482,35 +546,106 @@ function mountMap(j, state) {
   mountScrubber(scrub, { latlngs, times, progress, posMarker });
 }
 
-// The time scrubber: drag to rewind the journey, ▶ to replay it. A bright line
-// recedes over the faint route and the position marker tracks along, while the
-// readout names the date, distance covered, and day reached. Needs aligned
-// timestamps and at least a few points; otherwise the map stands alone.
+// The time scrubber on a FIXED, uniform time axis. Dragging moves through real
+// elapsed time — NOT through GPS-fix index. Fixes are unevenly spaced in time, so
+// an index slider would deform time (a day of dense fixes and a week of sparse
+// ones would occupy the same travel). Here the thumb maps linearly to time and
+// the position is INTERPOLATED between the two bracketing fixes, so motion is
+// smooth and honest. Month ticks make the scale legible; a local-conditions line
+// names the season and (live) the ERA5 daily-mean temperature at the scrubbed
+// place & date. Needs aligned timestamps and a few points; else the map stands alone.
+const SCRUB_STEPS = 1000; // slider resolution over the [t0, tLast] interval
 function mountScrubber(scrub, { latlngs, times, progress, posMarker }) {
   if (!scrub || !times || latlngs.length < 3) return;
 
   const last = latlngs.length - 1;
+  const t0 = times[0];
+  const tLast = times[last];
+  const span = Math.max(1, tLast - t0);
   const cum = [0];
   for (let i = 1; i <= last; i++) cum[i] = cum[i - 1] + haversineKm(latlngs[i - 1], latlngs[i]);
-  const totalDays = Math.max(1, Math.round((times[last] - times[0]) / MS_PER_DAY));
+  const totalDays = Math.max(1, Math.round(span / MS_PER_DAY));
+
+  // Position + distance covered at an arbitrary instant: find the bracketing
+  // fixes by binary search and lerp between them.
+  const at = (time) => {
+    const t = Math.max(t0, Math.min(tLast, time));
+    let lo = 0;
+    let hi = last;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (times[mid] <= t) lo = mid;
+      else hi = mid - 1;
+    }
+    const j = Math.min(lo, last - 1); // lower-bracket fix index
+    const seg = times[j + 1] - times[j];
+    const f = seg > 0 ? (t - times[j]) / seg : 0;
+    const lat = latlngs[j][0] + (latlngs[j + 1][0] - latlngs[j][0]) * f;
+    const lon = latlngs[j][1] + (latlngs[j + 1][1] - latlngs[j][1]) * f;
+    const km = cum[j] + (cum[j + 1] - cum[j]) * f;
+    return { j, latlng: [lat, lon], km, time: t };
+  };
 
   scrub.innerHTML = `
     <button class="scrub-play" type="button" aria-label="Replay journey">▶</button>
-    <input class="scrub-range" type="range" min="0" max="${last}" value="${last}" step="1"
-           aria-label="Journey timeline" />
-    <div class="scrub-readout" aria-live="polite"></div>`;
+    <div class="scrub-track">
+      <input class="scrub-range" type="range" min="0" max="${SCRUB_STEPS}" value="${SCRUB_STEPS}" step="1"
+             aria-label="Journey timeline (uniform time scale)" />
+      <div class="scrub-axis"></div>
+    </div>
+    <div class="scrub-readout" aria-live="polite"></div>
+    <div class="scrub-conditions"></div>`;
   const range = scrub.querySelector(".scrub-range");
   const readout = scrub.querySelector(".scrub-readout");
   const playBtn = scrub.querySelector(".scrub-play");
+  const cond = scrub.querySelector(".scrub-conditions");
+  buildAxis(scrub.querySelector(".scrub-axis"), t0, tLast, span);
 
-  const setIndex = (raw) => {
-    const i = Math.max(0, Math.min(last, raw | 0));
-    posMarker.setLatLng(latlngs[i]);
-    progress.setLatLngs(latlngs.slice(0, i + 1));
-    const dayN = Math.round((times[i] - times[0]) / MS_PER_DAY);
-    readout.innerHTML = `<strong>${fmtDate(times[i])}</strong> · ${Math.round(
-      cum[i],
+  const seasonChip = (s) =>
+    `<span class="cond"><span class="cond-ico">${s.ico}</span>` +
+    `<span class="cond-txt"><strong>${s.name}</strong> · ${s.hemi}. hemisphere</span></span>`;
+  const tempChip = (val) => {
+    if (val === undefined) return `<span class="cond-ico">🌡️</span><span class="cond-src">fetching temperature…</span>`;
+    if (val === null) return `<span class="cond-ico">🌡️</span><span class="cond-na">temperature unavailable</span>`;
+    return (
+      `<span class="cond-ico">🌡️</span><span class="cond-txt"><strong>~${Math.round(val)}°C</strong> daily mean</span>` +
+      ` <span class="cond-src">ERA5</span>`
+    );
+  };
+
+  // Season is synchronous; temperature is a network fetch, so it's DEBOUNCED —
+  // a drag fires many input events, but only the settled cell hits the archive.
+  let condReq = 0;
+  let condTimer = null;
+  const renderConditions = (latlng, time) => {
+    const s = seasonAt(time, latlng[0]);
+    const ymd = ymdUTC(time);
+    const key = `${latlng[0].toFixed(2)},${latlng[1].toFixed(2)},${ymd}`;
+    const cached = tempCache.get(key);
+    const ready = typeof cached === "number" || cached === null;
+    cond.innerHTML = seasonChip(s) + `<span class="cond cond-temp">${tempChip(ready ? cached : undefined)}</span>`;
+    if (ready) return;
+    const my = ++condReq;
+    clearTimeout(condTimer);
+    condTimer = setTimeout(() => {
+      Promise.resolve(dailyMeanTempC(latlng[0], latlng[1], time)).then((val) => {
+        if (my !== condReq) return; // a later scrub superseded this fetch
+        const el = cond.querySelector(".cond-temp");
+        if (el) el.innerHTML = tempChip(val);
+      });
+    }, 280);
+  };
+
+  const setFraction = (frac) => {
+    const f = Math.max(0, Math.min(1, frac));
+    const pos = at(t0 + f * span);
+    posMarker.setLatLng(pos.latlng);
+    progress.setLatLngs(latlngs.slice(0, pos.j + 1).concat([pos.latlng]));
+    const dayN = Math.round((pos.time - t0) / MS_PER_DAY);
+    readout.innerHTML = `<strong>${fmtDate(pos.time)}</strong> · ${Math.round(
+      pos.km,
     ).toLocaleString()} km · day ${dayN}/${totalDays}`;
+    renderConditions(pos.latlng, pos.time);
   };
 
   const stopPlay = () => {
@@ -522,24 +657,53 @@ function mountScrubber(scrub, { latlngs, times, progress, posMarker }) {
     playBtn.classList.remove("is-playing");
   };
   const startPlay = () => {
-    let i = Number(range.value) >= last ? 0 : Number(range.value); // replay from start if at end
+    // Advance by a fixed time-step per frame, so playback speed is constant in
+    // real time regardless of how the fixes are spaced.
+    let v = Number(range.value) >= SCRUB_STEPS ? 0 : Number(range.value); // replay from start if at end
+    const stepPerFrame = SCRUB_STEPS / 110; // ~110 frames ≈ 4.4 s end-to-end
     playBtn.textContent = "❚❚";
     playBtn.classList.add("is-playing");
     scrubTimer = setInterval(() => {
-      range.value = String(i);
-      setIndex(i);
-      if (i >= last) return stopPlay();
-      i++;
-    }, 45);
+      v = Math.min(SCRUB_STEPS, v + stepPerFrame);
+      range.value = String(Math.round(v));
+      setFraction(v / SCRUB_STEPS);
+      if (v >= SCRUB_STEPS) return stopPlay();
+    }, 40);
   };
 
   range.addEventListener("input", () => {
     stopPlay();
-    setIndex(Number(range.value));
+    setFraction(Number(range.value) / SCRUB_STEPS);
   });
   playBtn.addEventListener("click", () => (scrubTimer ? stopPlay() : startPlay()));
 
-  setIndex(last); // rest at the latest fix
+  setFraction(1); // rest at the latest fix
+}
+
+// Month/year ticks on the scrubber, spaced by REAL elapsed time so the axis is
+// uniform (equal pixels = equal time). Labels thin out on long tracks; the first
+// tick of each year carries the year and a taller mark.
+function buildAxis(axis, t0, tLast, span) {
+  if (!axis) return;
+  const ticks = [];
+  const d0 = new Date(t0);
+  let t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth(), 1);
+  if (t < t0) t = Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 1);
+  while (t <= tLast) {
+    const dd = new Date(t);
+    ticks.push({ t, month: dd.getUTCMonth(), year: dd.getUTCFullYear() });
+    t = Date.UTC(dd.getUTCFullYear(), dd.getUTCMonth() + 1, 1);
+  }
+  const stride = Math.ceil(ticks.length / 12) || 1; // keep labels legible (≤ ~12)
+  axis.innerHTML = ticks
+    .map((tk, i) => {
+      const left = (100 * (tk.t - t0)) / span;
+      const isYear = tk.month === 0;
+      const labelled = i % stride === 0 || isYear; // never drop a year boundary
+      const label = !labelled ? "" : isYear ? `${MONTHS[tk.month]} ’${String(tk.year).slice(2)}` : MONTHS[tk.month];
+      return `<span class="scrub-tick${isYear ? " is-year" : ""}" style="left:${left.toFixed(2)}%">${esc(label)}</span>`;
+    })
+    .join("");
 }
 
 // --------------------------------------------------------------------------
