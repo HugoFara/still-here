@@ -1,6 +1,8 @@
 // Still Here — follow-view client. Zero build, plain ES modules.
 // No account: an anonymous session id (localStorage) determines the A/B arm.
 
+import { LAND } from "./basemap.generated.js";
+
 const session = (() => {
   // ?session=… lets you deep-link / pin an A/B arm (handy for demos + testing).
   const override = new URL(location.href).searchParams.get("session");
@@ -218,14 +220,36 @@ function renderSuccessor(s, fromId, isNarrative) {
 }
 
 // --------------------------------------------------------------------------
-// SVG journey map (offline, no tiles — the journey itself is the story)
+// SVG journey map (offline — coastlines + borders from a bundled Natural Earth
+// basemap, projected with the SAME transform as the track so geography lines up)
 // --------------------------------------------------------------------------
+
+const SEA = "#dde3e3";
+
+// Project the bundled land rings that fall inside the current window, with the
+// same x()/y() as the track. Off-window rings are culled by their precomputed
+// bbox; partially-visible ones are clipped by the SVG viewport. Returns one path.
+function landLayer(x, y, win) {
+  let d = "";
+  for (const poly of LAND) {
+    const b = poly.b; // [minLon, minLat, maxLon, maxLat]
+    if (b[2] < win.minLon || b[0] > win.maxLon || b[3] < win.minLat || b[1] > win.maxLat) continue;
+    const r = poly.r;
+    for (let i = 0; i < r.length; i++) {
+      d += (i ? "L" : "M") + x(r[i][0]).toFixed(1) + " " + y(r[i][1]).toFixed(1) + " ";
+    }
+    d += "Z ";
+  }
+  return d
+    ? `<path d="${d}" fill="#e8e3d4" stroke="#c2bba8" stroke-width="0.6" stroke-linejoin="round"/>`
+    : "";
+}
 
 function renderMap(j, state) {
   const pts = j.points;
   const W = 720, H = 300, pad = 28;
   if (!pts || pts.length === 0 || !j.bbox) {
-    return `<svg viewBox="0 0 ${W} ${H}"><text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#9a9282">no track</text></svg>`;
+    return `<svg viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${SEA}"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#9a9282">no track</text></svg>`;
   }
   let { minLon, maxLon, minLat, maxLat } = j.bbox;
   const padLon = (maxLon - minLon) * 0.12 || 0.5;
@@ -235,6 +259,8 @@ function renderMap(j, state) {
   const x = (lon) => pad + ((lon - minLon) / spanLon) * (W - 2 * pad);
   const y = (lat) => pad + ((maxLat - lat) / spanLat) * (H - 2 * pad);
 
+  const land = landLayer(x, y, { minLon, maxLon, minLat, maxLat });
+
   const d = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(" ");
   const start = pts[0], end = pts[pts.length - 1];
   const stroke = state === "LIVE" ? "#4f6f52" : state === "QUIET" ? "#b07d2f" : "#5a6b73";
@@ -242,25 +268,27 @@ function renderMap(j, state) {
     ? `<circle cx="${x(end[0])}" cy="${y(end[1])}" r="9" fill="${stroke}" opacity="0.25"><animate attributeName="r" values="6;13;6" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.35;0;0.35" dur="2.4s" repeatCount="indefinite"/></circle>`
     : "";
 
-  // faint graticule
+  // Very faint graticule — a scale cue for zoomed-in inland tracks where no
+  // coastline is in view.
   let grat = "";
   for (let k = 1; k < 4; k++) {
     const gx = pad + (k / 4) * (W - 2 * pad);
     const gy = pad + (k / 4) * (H - 2 * pad);
-    grat += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${H - pad}" stroke="#dfe1d8"/>`;
-    grat += `<line x1="${pad}" y1="${gy}" x2="${W - pad}" y2="${gy}" stroke="#dfe1d8"/>`;
+    grat += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${H - pad}" stroke="#000" opacity="0.05"/>`;
+    grat += `<line x1="${pad}" y1="${gy}" x2="${W - pad}" y2="${gy}" stroke="#000" opacity="0.05"/>`;
   }
 
   const landmark = j.landmarkCrossed
-    ? `<text x="${x(end[0])}" y="${y(end[1]) - 14}" text-anchor="middle" font-size="12" fill="#5a564c">${esc(j.landmarkCrossed)}</text>`
+    ? `<text x="${x(end[0])}" y="${y(end[1]) - 14}" text-anchor="middle" font-size="12" fill="#3f3c34" stroke="#eef0e9" stroke-width="3" paint-order="stroke" font-weight="600">${esc(j.landmarkCrossed)}</text>`
     : "";
 
   return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="journey map">
-      <rect x="0" y="0" width="${W}" height="${H}" fill="#eef0e9"/>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="journey map with coastlines">
+      <rect x="0" y="0" width="${W}" height="${H}" fill="${SEA}"/>
+      ${land}
       ${grat}
-      <path d="${d}" fill="none" stroke="${stroke}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.9"/>
-      <circle cx="${x(start[0])}" cy="${y(start[1])}" r="4.5" fill="#a89a82" stroke="#fff"/>
+      <path d="${d}" fill="none" stroke="${stroke}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>
+      <circle cx="${x(start[0])}" cy="${y(start[1])}" r="4.5" fill="#7a6a4e" stroke="#fff"/>
       ${endPulse}
       <circle cx="${x(end[0])}" cy="${y(end[1])}" r="5.5" fill="${stroke}" stroke="#fff"/>
       ${landmark}
