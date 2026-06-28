@@ -15,8 +15,12 @@ const BASE = process.env.SHOTS_BASE ?? "http://localhost:8787";
 const DIR = process.env.SHOTS_DIR ?? "screenshots";
 
 // Default tour: a resolution (bridge + handoff thread) and a long migration (to
-// show the coastline basemap at flyway scale).
+// show the Leaflet basemap at flyway scale).
 const DEFAULT_ANIMALS = ["stork-europa", "buzzard-pilgrim"];
+
+// The journey map uses online tiles (OSM/Esri); give them a beat to paint before
+// the screenshot so the basemap isn't a grey void.
+const TILE_SETTLE_MS = 1800;
 
 async function reachable() {
   try {
@@ -73,7 +77,9 @@ async function main() {
     await shoot("02-narrative-louis-continued.png", ".continued-banner");
 
     await page.goto(`${BASE}/?session=${arms.narrative}&animal=buzzard-pilgrim`, { waitUntil: "networkidle" });
-    await shoot("03-narrative-pilgrim-migration.png", ".map-wrap svg");
+    await page.waitForSelector(".leaflet-container", { timeout: 10000 });
+    await page.waitForTimeout(TILE_SETTLE_MS);
+    await shoot("03-narrative-pilgrim-migration.png");
 
     console.error("control (map) arm:");
     await page.goto(`${BASE}/?session=${arms.map}&animal=stork-europa`, { waitUntil: "networkidle" });
@@ -81,7 +87,9 @@ async function main() {
   } else {
     for (const id of animals) {
       await page.goto(`${BASE}/?session=${arms.narrative}&animal=${encodeURIComponent(id)}`, { waitUntil: "networkidle" });
-      await shoot(`${id}.png`, ".map-wrap svg");
+      await page.waitForSelector(".leaflet-container", { timeout: 10000 });
+      await page.waitForTimeout(TILE_SETTLE_MS);
+      await shoot(`${id}.png`);
     }
   }
 

@@ -22,6 +22,7 @@ const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
+  ".png": "image/png",
 };
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {

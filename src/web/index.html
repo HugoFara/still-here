@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Still Here — follow one wild life</title>
+    <link rel="stylesheet" href="/vendor/leaflet.css" />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
@@ -45,6 +46,9 @@
       </section>
     </main>
 
+    <!-- Vendored Leaflet (UMD). Classic script so it sets window.L before the
+         deferred module below runs. No npm dependency — static asset only. -->
+    <script src="/vendor/leaflet.js"></script>
     <script src="/app.js" type="module"></script>
   </body>
 </html>

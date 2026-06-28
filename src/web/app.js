@@ -1,7 +1,7 @@
 // Still Here — follow-view client. Zero build, plain ES modules.
 // No account: an anonymous session id (localStorage) determines the A/B arm.
-
-import { LAND } from "./basemap.generated.js";
+// The journey map is a vendored Leaflet instance (window.L, loaded by a classic
+// <script> in index.html — no npm dependency).
 
 const session = (() => {
   // ?session=… lets you deep-link / pin an A/B arm (handy for demos + testing).
@@ -17,6 +17,55 @@ const $ = (sel) => document.querySelector(sel);
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+// --------------------------------------------------------------------------
+// Data access — works both server-served AND as a static GitHub Pages export.
+// In static mode (window.STATIC_EXPORT, set by the exported index.html) there is
+// no server: the deterministic fixture payloads are pre-baked to JSON, the A/B
+// arm is computed client-side, and the measurement POSTs are no-ops (the funnel
+// needs a writable server-side store, which a static host cannot provide).
+// --------------------------------------------------------------------------
+const STATIC = typeof window !== "undefined" && window.STATIC_EXPORT === true;
+
+// FNV-1a 32-bit — MUST stay identical to assignArm() in src/experiment/ab.ts so
+// the client loads the arm-correct pre-baked payload.
+function assignArm(sessionId, salt = "v1") {
+  let h = 2166136261 >>> 0;
+  const s = `${salt}:${sessionId}`;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) % 2 === 0 ? "narrative" : "map";
+}
+
+async function apiRoster() {
+  return (await fetch(STATIC ? "api/roster.json" : "/api/roster")).json();
+}
+
+// Returns a Response in BOTH modes so callers can branch on res.ok uniformly.
+function apiAnimal(id, sessionId, fromId) {
+  if (STATIC) {
+    const arm = assignArm(sessionId);
+    const slug = fromId ? `${id}__from__${fromId}` : id;
+    return fetch(`api/animal/${arm}/${slug}.json`);
+  }
+  const fromQ = fromId ? `&from=${encodeURIComponent(fromId)}` : "";
+  return fetch(`/api/animal?id=${encodeURIComponent(id)}&session=${encodeURIComponent(sessionId)}${fromQ}`);
+}
+
+function apiPost(path, body) {
+  if (STATIC) return Promise.resolve(null); // measurement is server-only
+  return fetch(path, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+async function apiExperiment() {
+  return (await fetch(STATIC ? "api/experiment.json" : "/api/experiment")).json();
+}
+
 const STATE_LABEL = {
   LIVE: "Live",
   QUIET: "Resting / out of signal",
@@ -29,7 +78,7 @@ const STATE_LABEL = {
 // --------------------------------------------------------------------------
 
 async function loadRoster() {
-  const { roster } = await (await fetch("/api/roster")).json();
+  const { roster } = await apiRoster();
   const ul = $("#roster-list");
   ul.innerHTML = "";
   for (const a of roster) {
@@ -46,7 +95,12 @@ async function loadRoster() {
     li.querySelector("button").addEventListener("click", () => openAnimal(a.id));
     ul.appendChild(li);
   }
-  if (roster[0]) openAnimal(roster[0].id);
+  // Open exactly one animal up front: the deep-linked ?animal= if valid, else the
+  // first. (One open, not two — opening roster[0] AND a wanted animal races, and
+  // with instant static file reads the wrong one can win.)
+  const want = new URL(location.href).searchParams.get("animal");
+  const initialId = want && roster.some((a) => a.id === want) ? want : roster[0]?.id;
+  if (initialId) openAnimal(initialId);
 }
 
 let engageTimer = null;
@@ -61,21 +115,14 @@ async function openAnimal(id, fromId = null) {
   if (!followed.has(id)) {
     followed.add(id);
     localStorage.setItem("followed", JSON.stringify([...followed]));
-    fetch("/api/follow", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        sessionId: session,
-        individualId: id,
-        ...(fromId ? { meta: { from: fromId } } : {}),
-      }),
+    apiPost("/api/follow", {
+      sessionId: session,
+      individualId: id,
+      ...(fromId ? { meta: { from: fromId } } : {}),
     });
   }
 
-  const fromQ = fromId ? `&from=${encodeURIComponent(fromId)}` : "";
-  const res = await fetch(
-    `/api/animal?id=${encodeURIComponent(id)}&session=${encodeURIComponent(session)}${fromQ}`,
-  );
+  const res = await apiAnimal(id, session, fromId);
   if (!res.ok) {
     $("#stage").innerHTML = `<div class="empty">This animal is no longer available.</div>`;
     return;
@@ -85,11 +132,7 @@ async function openAnimal(id, fromId = null) {
   // Engagement-depth signal: a dwell of 6s counts as 'engage'.
   if (engageTimer) clearTimeout(engageTimer);
   engageTimer = setTimeout(() => {
-    fetch("/api/event", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ sessionId: session, individualId: id, type: "engage" }),
-    });
+    apiPost("/api/event", { sessionId: session, individualId: id, type: "engage" });
   }, 6000);
 }
 
@@ -146,7 +189,7 @@ function renderAnimal(p) {
       ${assignedNote}
       <div class="ribbon"><span class="pill ${p.status.state}">${esc(STATE_LABEL[p.status.state] || p.status.state)}</span></div>
     </div>
-    <div class="map-wrap">${renderMap(j, p.status.state)}</div>
+    <div class="map-wrap"><div id="journey-map"></div></div>
     <div class="body">
       ${story}
       <div class="stats">
@@ -164,6 +207,7 @@ function renderAnimal(p) {
       </div>
     </div>`;
 
+  mountMap(j, p.status.state);
   if (p.action) renderAction(p.action, p.animal.id);
   if (p.successor) renderSuccessor(p.successor, p.animal.id, isNarrative);
 }
@@ -181,15 +225,11 @@ function renderAction(action, individualId) {
     </div>`;
   const btn = slot.querySelector(".cta");
   btn.addEventListener("click", () => {
-    fetch("/api/event", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        sessionId: session,
-        individualId,
-        type: "action_taken",
-        meta: { reason: action.reason, target: action.targetIndividualId },
-      }),
+    apiPost("/api/event", {
+      sessionId: session,
+      individualId,
+      type: "action_taken",
+      meta: { reason: action.reason, target: action.targetIndividualId },
     });
     btn.disabled = true;
     btn.textContent = "Thank you — shared";
@@ -220,79 +260,93 @@ function renderSuccessor(s, fromId, isNarrative) {
 }
 
 // --------------------------------------------------------------------------
-// SVG journey map (offline — coastlines + borders from a bundled Natural Earth
-// basemap, projected with the SAME transform as the track so geography lines up)
+// Journey map — a real interactive Leaflet slippy map (pan/zoom), street +
+// satellite layers, with the GPS track drawn as a polyline on top. Tiles are
+// fetched from OpenStreetMap + Esri World Imagery at view time, so the map needs
+// a network connection. Leaflet itself is vendored (window.L) — no npm dep.
 // --------------------------------------------------------------------------
 
-const SEA = "#dde3e3";
+const TRACK_COLOR = { LIVE: "#4f6f52", QUIET: "#b07d2f" };
+const trackColor = (state) => TRACK_COLOR[state] || "#5a6b73";
 
-// Project the bundled land rings that fall inside the current window, with the
-// same x()/y() as the track. Off-window rings are culled by their precomputed
-// bbox; partially-visible ones are clipped by the SVG viewport. Returns one path.
-function landLayer(x, y, win) {
-  let d = "";
-  for (const poly of LAND) {
-    const b = poly.b; // [minLon, minLat, maxLon, maxLat]
-    if (b[2] < win.minLon || b[0] > win.maxLon || b[3] < win.minLat || b[1] > win.maxLat) continue;
-    const r = poly.r;
-    for (let i = 0; i < r.length; i++) {
-      d += (i ? "L" : "M") + x(r[i][0]).toFixed(1) + " " + y(r[i][1]).toFixed(1) + " ";
-    }
-    d += "Z ";
+let journeyMap = null; // current Leaflet instance — torn down before each remount
+
+function mountMap(j, state) {
+  const el = document.getElementById("journey-map");
+  if (!el) return;
+
+  // Leaflet refuses to re-init a container; always tear the old one down first.
+  if (journeyMap) {
+    journeyMap.remove();
+    journeyMap = null;
   }
-  return d
-    ? `<path d="${d}" fill="#e8e3d4" stroke="#c2bba8" stroke-width="0.6" stroke-linejoin="round"/>`
-    : "";
-}
-
-function renderMap(j, state) {
-  const pts = j.points;
-  const W = 720, H = 300, pad = 28;
-  if (!pts || pts.length === 0 || !j.bbox) {
-    return `<svg viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${SEA}"/><text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="#9a9282">no track</text></svg>`;
-  }
-  let { minLon, maxLon, minLat, maxLat } = j.bbox;
-  const padLon = (maxLon - minLon) * 0.12 || 0.5;
-  const padLat = (maxLat - minLat) * 0.12 || 0.5;
-  minLon -= padLon; maxLon += padLon; minLat -= padLat; maxLat += padLat;
-  const spanLon = maxLon - minLon || 1, spanLat = maxLat - minLat || 1;
-  const x = (lon) => pad + ((lon - minLon) / spanLon) * (W - 2 * pad);
-  const y = (lat) => pad + ((maxLat - lat) / spanLat) * (H - 2 * pad);
-
-  const land = landLayer(x, y, { minLon, maxLon, minLat, maxLat });
-
-  const d = pts.map((p, i) => `${i ? "L" : "M"}${x(p[0]).toFixed(1)} ${y(p[1]).toFixed(1)}`).join(" ");
-  const start = pts[0], end = pts[pts.length - 1];
-  const stroke = state === "LIVE" ? "#4f6f52" : state === "QUIET" ? "#b07d2f" : "#5a6b73";
-  const endPulse = state === "LIVE"
-    ? `<circle cx="${x(end[0])}" cy="${y(end[1])}" r="9" fill="${stroke}" opacity="0.25"><animate attributeName="r" values="6;13;6" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.35;0;0.35" dur="2.4s" repeatCount="indefinite"/></circle>`
-    : "";
-
-  // Very faint graticule — a scale cue for zoomed-in inland tracks where no
-  // coastline is in view.
-  let grat = "";
-  for (let k = 1; k < 4; k++) {
-    const gx = pad + (k / 4) * (W - 2 * pad);
-    const gy = pad + (k / 4) * (H - 2 * pad);
-    grat += `<line x1="${gx}" y1="${pad}" x2="${gx}" y2="${H - pad}" stroke="#000" opacity="0.05"/>`;
-    grat += `<line x1="${pad}" y1="${gy}" x2="${W - pad}" y2="${gy}" stroke="#000" opacity="0.05"/>`;
+  if (!window.L) {
+    el.innerHTML = `<div class="map-fallback">Map unavailable (Leaflet failed to load).</div>`;
+    return;
   }
 
-  const landmark = j.landmarkCrossed
-    ? `<text x="${x(end[0])}" y="${y(end[1]) - 14}" text-anchor="middle" font-size="12" fill="#3f3c34" stroke="#eef0e9" stroke-width="3" paint-order="stroke" font-weight="600">${esc(j.landmarkCrossed)}</text>`
-    : "";
+  const pts = j.points || [];
+  if (pts.length === 0) {
+    el.innerHTML = `<div class="map-fallback">No track yet.</div>`;
+    return;
+  }
 
-  return `
-    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="journey map with coastlines">
-      <rect x="0" y="0" width="${W}" height="${H}" fill="${SEA}"/>
-      ${land}
-      ${grat}
-      <path d="${d}" fill="none" stroke="${stroke}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" opacity="0.95"/>
-      <circle cx="${x(start[0])}" cy="${y(start[1])}" r="4.5" fill="#7a6a4e" stroke="#fff"/>
-      ${endPulse}
-      <circle cx="${x(end[0])}" cy="${y(end[1])}" r="5.5" fill="${stroke}" stroke="#fff"/>
-      ${landmark}
-    </svg>`;
+  // Track points are [lon, lat]; Leaflet wants [lat, lon].
+  const latlngs = pts.map((p) => [p[1], p[0]]);
+  const start = latlngs[0];
+  const end = latlngs[latlngs.length - 1];
+  const color = trackColor(state);
+
+  const street = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: "&copy; OpenStreetMap contributors",
+  });
+  const satellite = L.tileLayer(
+    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 19, attribution: "Imagery &copy; Esri, Maxar, Earthstar Geographics" },
+  );
+
+  const map = L.map(el, { layers: [street], scrollWheelZoom: true, worldCopyJump: true });
+  L.control.layers({ Street: street, Satellite: satellite }, null, { collapsed: false }).addTo(map);
+  journeyMap = map;
+
+  const line = L.polyline(latlngs, {
+    color,
+    weight: 3,
+    opacity: 0.95,
+    lineJoin: "round",
+    lineCap: "round",
+  }).addTo(map);
+
+  L.circleMarker(start, {
+    radius: 5,
+    color: "#fff",
+    weight: 2,
+    fillColor: "#7a6a4e",
+    fillOpacity: 1,
+  })
+    .addTo(map)
+    .bindTooltip(`Start${j.startPlace ? " · " + j.startPlace : ""}`, { direction: "top" });
+
+  // End marker: a divIcon so LIVE tracks can carry a CSS pulse ring.
+  const endIcon = L.divIcon({
+    className: "end-marker",
+    html: `<span class="end-dot ${state === "LIVE" ? "is-live" : ""}" style="--c:${color}"></span>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+  const endMarker = L.marker(end, { icon: endIcon, keyboard: false }).addTo(map);
+  const endLabel = j.landmarkCrossed || (j.latestPlace ? "Last fix · " + j.latestPlace : "Last fix");
+  endMarker.bindTooltip(endLabel, {
+    permanent: Boolean(j.landmarkCrossed),
+    direction: "top",
+    className: "landmark-tip",
+    offset: [0, -6],
+  });
+
+  map.fitBounds(line.getBounds(), { padding: [28, 28], maxZoom: 11 });
+  // The container was just inserted; ensure Leaflet measured it correctly.
+  setTimeout(() => map && map.invalidateSize(), 0);
 }
 
 // --------------------------------------------------------------------------
@@ -300,7 +354,7 @@ function renderMap(j, state) {
 // --------------------------------------------------------------------------
 
 async function loadExperiment() {
-  const r = await (await fetch("/api/experiment")).json();
+  const r = await apiExperiment();
   const el = $("#funnel");
   const stageRow = (label, value, max) => `
     <div class="bar">
@@ -342,10 +396,8 @@ function switchView(which) {
   if (which === "experiment") loadExperiment();
 }
 
-// ?view=experiment opens the dashboard directly; ?animal=<id> pins the subject.
+// ?view=experiment opens the dashboard directly; ?animal=<id> pins the subject
+// (loadRoster honors it as the initial open).
 const params = new URL(location.href).searchParams;
 if (params.get("view") === "experiment") switchView("experiment");
-const wantAnimal = params.get("animal");
-loadRoster().then(() => {
-  if (wantAnimal) openAnimal(wantAnimal);
-});
+loadRoster();
