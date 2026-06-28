@@ -482,11 +482,13 @@ function mountMap(j, state) {
   }).addTo(map);
 
   // Subtle GPS acquisition points — thinned to ~40 so inflections are visible
-  // without crowding, each revealing its fix date on hover.
+  // without crowding. Each reveals its fix date on hover and seeks the scrubber
+  // to that date on click (wired once the scrubber's API exists, below).
+  const seekDots = []; // { marker, i } — clickable data points
   if (times) {
     const dotStep = Math.max(1, Math.ceil(latlngs.length / 40));
     for (let i = dotStep; i < latlngs.length - 1; i += dotStep) {
-      L.circleMarker(latlngs[i], {
+      const dot = L.circleMarker(latlngs[i], {
         radius: 2.5,
         color: "#fff",
         weight: 1,
@@ -495,10 +497,11 @@ function mountMap(j, state) {
       })
         .addTo(map)
         .bindTooltip(fmtDate(times[i]), { direction: "top" });
+      seekDots.push({ marker: dot, i });
     }
   }
 
-  L.circleMarker(start, {
+  const startMarker = L.circleMarker(start, {
     radius: 5,
     color: "#fff",
     weight: 2,
@@ -543,7 +546,19 @@ function mountMap(j, state) {
   // The container was just inserted; ensure Leaflet measured it correctly.
   setTimeout(() => map && map.invalidateSize(), 0);
 
-  mountScrubber(scrub, { latlngs, times, progress, posMarker });
+  const scrubApi = mountScrubber(scrub, { latlngs, times, progress, posMarker });
+
+  // Click a data point (or anywhere on the route) to move the timeline to that
+  // date — the map and the scrubber are two views of the same instant.
+  if (scrubApi) {
+    const last = latlngs.length - 1;
+    for (const { marker, i } of seekDots) marker.on("click", () => scrubApi.seekToIndex(i));
+    startMarker.on("click", () => scrubApi.seekToIndex(0));
+    endMarker.on("click", () => scrubApi.seekToIndex(last));
+    const onTrackClick = (e) => scrubApi.seekToNearest([e.latlng.lat, e.latlng.lng]);
+    base.on("click", onTrackClick);
+    progress.on("click", onTrackClick);
+  }
 }
 
 // The time scrubber on a FIXED, uniform time axis. Dragging moves through real
@@ -677,7 +692,30 @@ function mountScrubber(scrub, { latlngs, times, progress, posMarker }) {
   });
   playBtn.addEventListener("click", () => (scrubTimer ? stopPlay() : startPlay()));
 
+  // Seek the timeline from outside (e.g. clicking a data point on the map). Sync
+  // the slider's value so the thumb tracks too, and halt any playback in flight.
+  const seekToTime = (t) => {
+    stopPlay();
+    const f = (Math.max(t0, Math.min(tLast, t)) - t0) / span;
+    range.value = String(Math.round(f * SCRUB_STEPS));
+    setFraction(f);
+  };
+  const seekToIndex = (i) => seekToTime(times[Math.max(0, Math.min(last, i | 0))]);
+  const seekToNearest = (latlng) => {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i <= last; i++) {
+      const d = haversineKm(latlngs[i], latlng);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    seekToIndex(best);
+  };
+
   setFraction(1); // rest at the latest fix
+  return { seekToTime, seekToIndex, seekToNearest };
 }
 
 // Month/year ticks on the scrubber, spaced by REAL elapsed time so the axis is

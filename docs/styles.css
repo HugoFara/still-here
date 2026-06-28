@@ -85,6 +85,8 @@ nav { display: flex; gap: 0.4rem; }
 
 .map-wrap { margin: 0.9rem 0 0; background: #dde3e3; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 #journey-map { width: 100%; height: 360px; background: #dde3e3; z-index: 0; }
+/* Data points and the route are clickable — they seek the timeline to that date. */
+#journey-map .leaflet-interactive { cursor: pointer; }
 .map-fallback { display: flex; align-items: center; justify-content: center; height: 360px; color: var(--muted); font-size: 0.9rem; }
 
 /* End-of-track marker. A static dot; LIVE tracks add a slow pulse ring. */
