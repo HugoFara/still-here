@@ -14,12 +14,15 @@
     "seed": "node --disable-warning=ExperimentalWarning src/ingestion/run.ts --seed",
     "curate": "node --disable-warning=ExperimentalWarning src/roster/report.ts",
     "live:check": "node --disable-warning=ExperimentalWarning src/movebank/live-check.ts",
+    "basemap": "node scripts/build-basemap.mjs",
+    "shots": "node scripts/shots.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node --disable-warning=ExperimentalWarning --test \"test/*.test.ts\""
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
-    "@types/node": "^24.0.0"
+    "@types/node": "^24.0.0",
+    "playwright": "^1.61.1",
+    "typescript": "^5.9.0"
   },
   "license": "MIT"
 }
