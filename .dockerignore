@@ -1,0 +1,15 @@
+# Keep the image lean — and CRITICALLY keep secrets + local state out of it.
+.git
+node_modules
+# never bake the Movebank credential into a shippable image
+.env
+.env.*
+# local sqlite state — the container seeds its own from the committed fixture
+data/*.db
+data/*.db-*
+data/*.sqlite
+data/fixtures-runtime
+# dev-only artifacts
+screenshots
+*.log
+.DS_Store
