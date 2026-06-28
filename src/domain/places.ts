@@ -42,6 +42,28 @@ export const GAZETTEER: Place[] = [
   { name: "the Nile Valley", region: "Egypt", lat: 27.0, lon: 31.2 },
   { name: "the Rutland reservoirs", region: "the English Midlands", lat: 52.65, lon: -0.63 },
   { name: "the Bay of Biscay coast", region: "western France", lat: 45.6, lon: -1.1 },
+
+  // Waypoints added for the verified real roster (Louis, Noé, Mistral, the honey
+  // buzzard, Rosel, Europa, the Swiss kite). Each maps a region the real tracks
+  // actually pass through, so grounded place names stay accurate rather than
+  // snapping to a distant flyway point.
+  { name: "Strasbourg", region: "Alsace", lat: 48.58, lon: 7.75 },
+  { name: "Sarralbe", region: "Lorraine", lat: 48.99, lon: 6.99 },
+  { name: "the Vosges", region: "eastern France", lat: 48.2, lon: 7.0 },
+  { name: "the Upper Rhine plain", region: "around Karlsruhe", lat: 49.0, lon: 8.4 },
+  { name: "the Black Forest", region: "Baden-Württemberg", lat: 48.0, lon: 8.2 },
+  { name: "the Swabian Alb", region: "around Stuttgart", lat: 48.5, lon: 9.3 },
+  { name: "Bern", region: "the Swiss plateau", lat: 46.95, lon: 7.45 },
+  { name: "the Rhône valley", region: "southeastern France", lat: 44.5, lon: 4.8 },
+  { name: "the Gulf of Lion", region: "the French Mediterranean coast", lat: 43.2, lon: 3.7 },
+  { name: "Menorca", region: "the Balearic Islands", lat: 39.9, lon: 4.25 },
+  { name: "the Pyrenees", region: "the French–Spanish border", lat: 42.7, lon: 0.9, landmark: true },
+  { name: "the Segrià plain", region: "Catalonia", lat: 41.62, lon: 0.62 },
+  { name: "the Ebro basin", region: "around Zaragoza", lat: 41.65, lon: -0.9 },
+  { name: "the Guadalquivir marshes", region: "Andalusia", lat: 37.2, lon: -5.9 },
+  { name: "the Atlantic coast of Morocco", region: "Morocco", lat: 34.0, lon: -6.6 },
+  { name: "the Banc d'Arguin", region: "Mauritania", lat: 20.0, lon: -16.3 },
+  { name: "the Guinea coast", region: "West Africa", lat: 9.0, lon: -13.0 },
 ];
 
 export interface PlaceDescription {

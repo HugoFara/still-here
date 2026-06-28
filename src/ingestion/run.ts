@@ -8,12 +8,15 @@
 
 import { createContext, RUNTIME_FIXTURE_DIR } from "../context.ts";
 import { seedDemoEvents, seedRuntime } from "./seed-runner.ts";
+import { DEMO_NOW } from "../roster/seed.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const doSeed = args.includes("--seed");
   const ctx = createContext();
-  const now = Date.now();
+  // Live mode reads the real clock; the offline fixture demo anchors to the
+  // snapshot instant so the real tracks' continuity states stay stable + honest.
+  const now = ctx.config.movebank.mode === "live" ? Date.now() : DEMO_NOW;
 
   if (doSeed) {
     const { animals, studies } = await seedRuntime(ctx.repo, now, RUNTIME_FIXTURE_DIR);

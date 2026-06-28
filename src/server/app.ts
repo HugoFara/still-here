@@ -12,6 +12,7 @@ import { dirname, extname, join, normalize } from "node:path";
 import { createContext } from "../context.ts";
 import { RosterService } from "./roster-service.ts";
 import { computeFunnel } from "../experiment/ab.ts";
+import { DEMO_NOW } from "../roster/seed.ts";
 
 const WEB_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "web");
 
@@ -60,12 +61,15 @@ async function serveStatic(res: ServerResponse, urlPath: string): Promise<void> 
 export function startServer(port: number): { close: () => void } {
   const ctx = createContext();
   const service = new RosterService(ctx.repo, ctx.generator);
+  // In the offline fixture demo, the snapshot is frozen — anchor "now" to the
+  // capture instant so states match what was ingested. Live mode uses real time.
+  const liveMode = ctx.config.movebank.mode === "live";
 
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
       const path = url.pathname;
-      const now = Date.now();
+      const now = liveMode ? Date.now() : DEMO_NOW;
 
       if (req.method === "GET" && path === "/api/roster") {
         return sendJson(res, 200, { roster: service.listRoster(now) });

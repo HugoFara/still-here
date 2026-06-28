@@ -91,6 +91,14 @@ export interface Individual {
   referenceNotes?: string;
   /** Expected fixes-per-week, used by the continuity machine. */
   expectedFixesPerWeek: number;
+  /**
+   * True only for a hand-built demo placeholder whose track is fabricated (e.g.
+   * the PERMISSION_LOST mechanism demonstrator, which cannot be sourced from a
+   * public study). Real Movebank individuals are false. Kept DISTINCT from
+   * {@link Provenance.verified}: real data can be unverified-provenance without
+   * being synthetic, and the UI must never mislabel real positions as "demo".
+   */
+  synthetic?: boolean;
 }
 
 /** A timestamped location fix. */

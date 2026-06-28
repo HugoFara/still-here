@@ -102,6 +102,7 @@ nav { display: flex; gap: 0.4rem; }
 
 .provenance { font-size: 0.78rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 0.9rem; }
 .synthetic-banner { font-size: 0.78rem; color: #7a5a1f; background: color-mix(in srgb, var(--amber) 12%, var(--card)); border: 1px solid color-mix(in srgb, var(--amber) 35%, var(--line)); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0.8rem 1.6rem 0; }
+.unverified-banner { font-size: 0.78rem; color: #4a5b50; background: color-mix(in srgb, var(--green, #4f6f52) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--green, #4f6f52) 28%, var(--line)); border-radius: 8px; padding: 0.5rem 0.7rem; margin: 0.8rem 1.6rem 0; }
 
 /* ---- experiment ---- */
 .experiment { max-width: 880px; margin: 0 auto; padding: 1.8rem 1.6rem; }

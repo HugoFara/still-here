@@ -40,36 +40,49 @@ npm start
 # → open http://localhost:8787
 
 # other commands
-npm test          # 57 unit/integration tests (all pure modules + client fixtures)
+npm test          # 65 unit/integration tests (all pure modules + client fixtures)
 npm run typecheck # tsc --noEmit (strict); dev-only deps
 npm run curate    # print the ranked curation report with provenance (§4 deliverable)
 npm run ingest    # re-run ingestion against existing fixtures (a few×/day in prod)
 npm run live:check # read a real fully-public Movebank study through the live client
 ```
 
-The seed is anchored to the current time, so the five continuity states are always fresh.
+The offline demo's clock is anchored to the snapshot instant (2026-06-26), so the
+real tracks' five continuity states stay stable and honest; `MOVEBANK_MODE=live`
+uses the real clock and reads live positions.
 
 ---
 
 ## What you'll see
 
-A roster of seven European/Eurasian individuals chosen to exercise **every** continuity
-state:
+A roster of seven **real, named** European individuals — drawn from fully-public
+Movebank studies and chosen so their genuine last-fix recency exercises **every**
+continuity state — plus one synthetic demonstrator for the one state that cannot
+be sourced from public data:
 
-| Animal | Species | State demonstrated |
-|---|---|---|
-| Aila | White Stork | `LIVE` — mid-migration toward the Strait of Gibraltar |
-| Brennus | Osprey | `LIVE` — heading for the Sahel |
-| Tara | Northern Bald Ibis | `LIVE` — passing **Lake Geneva** (max distance-collapse for the user) |
-| Niko | White Stork | `QUIET` — paused 6 days in Extremadura; framed as resting, not alarm |
-| Skylla | Osprey | `RESOLVED_KNOWN` — tag recovered; designed ending + successor handoff |
-| Viljo | Lesser Spotted Eagle | `RESOLVED_UNKNOWN` — signal lost over the Sahara; honest closure |
-| Maud | White Stork | `PERMISSION_LOST` — API access revoked; **retires silently**, never shown as "disappeared" |
+| Animal | Species | Source study | State (from real recency) |
+|---|---|---|---|
+| **Louis** | White Stork | LifeTrack SW Germany · `21231406` | `LIVE` — back on the Upper Rhine after wintering in Catalonia |
+| **Noé** | White Stork | LifeTrack Sarralbe · `1562253659` | `LIVE` — breeding in NE France; winters in Iberia |
+| **Mistral**¹ | European Turtle Dove | Habitrack · `3413045568` | `LIVE` — Menorca-tagged, now in the **Rhône valley** (nearest Geneva) |
+| **Pilgrim**¹ | European Honey Buzzard | NABU Mössingen · `186178781` | `LIVE` — long-distance Afro-Palearctic migrant |
+| **Rosel** | White Stork | MPIAB ELSA 2.0 · `3883692006` | `QUIET` — genuinely silent ~14 days; framed as resting, not alarm |
+| **Europa** | White Stork | LifeTrack SW Germany · `21231406` | `RESOLVED_UNKNOWN` — signal stopped 64 days ago; honest closure |
+| **Aare**¹ | Red Kite | Milvus atlantis · `672882373` | `RESOLVED_KNOWN` — Swiss deployment ended 2022; designed ending + successor |
+| **Pip** | _synthetic demo_ | — | `PERMISSION_LOST` — access revoked; **retires silently**, never shown as "disappeared" |
 
-> ⚠︎ **Honesty.** Every seeded track is **synthetic** and every study's provenance is
-> flagged `verified: false`. Names/PIs/licenses are placeholders modelled on the real
-> public Movebank study families; they MUST be verified against live Movebank before any
-> animal is shown with real positions. The UI shows a synthetic-data banner accordingly.
+¹ Name **assigned by us** (no personal name in the study record) and labelled as such in the UI.
+
+> ⚠︎ **Honesty.** Every track above except **Pip** is a **real, unmodified Movebank
+> snapshot** of a named individual from a fully-public study (license terms suspended),
+> captured 2026-06-26 and downsampled for the offline build (`src/roster/real-tracks.generated.ts`;
+> live ingestion reads full resolution). Their continuity states are **not engineered** — they
+> fall out of each bird's real last-fix recency. But `provenance.verified` is still **false**:
+> the exact license, PI and citation must be confirmed on each study's Movebank page before any
+> of them is published as vetted — the binding human step (see "Going live"). The UI shows a
+> "provenance pending verification" banner accordingly, kept **distinct** from the synthetic
+> warning. **Pip** is the lone synthetic entry: a public study cannot revoke your access, so the
+> PERMISSION_LOST mechanism (denial ≠ tag death, §2.3) cannot be sourced from real public data.
 
 ---
 
@@ -98,7 +111,7 @@ src/
   domain/        types.ts · continuity.ts (state machine) · geo.ts · places.ts (gazetteer) · geocode.ts (Geocoder seam)
   movebank/      client.ts · transport.ts · errors.ts · types.ts · live-check.ts
   store/         repository.ts (interface) · sqlite-store.ts · async-repository.ts · postgres-store.ts
-  roster/        scoring.ts · seed.ts · track-builder.ts · successor.ts · report.ts
+  roster/        scoring.ts · seed.ts (REAL roster) · real-tracks.generated.ts · track-builder.ts · successor.ts · report.ts
   narrative/     grounding.ts (pure) · generator.ts (cache + provider)
   llm/           provider.ts (MockLLMProvider | AnthropicLLMProvider)
   experiment/    ab.ts (assignment · action bridge · funnel)
@@ -183,20 +196,39 @@ What this established and hard-wired:
 - Study **listing / `direct-read` require auth** (HTTP 401 without a token) — confirming the
   §2.3 model: enumerating public studies is the human/credentialed step, not an open API.
 
+### The roster is real (wired from live Movebank)
+
+The `?entity_type=study` endpoint *does* return a tokenless directory of the **164
+fully-public studies** (`suspend_license_terms=true`). We filtered it to European
+birds, **read live fixes** to confirm taxon / recency / geography, and selected the
+seven named individuals above. Their downsampled tracks are committed in
+`src/roster/real-tracks.generated.ts` (regenerate with `node scripts/capture-real-roster.mjs`).
+
+- `npm run seed` builds the roster from that real snapshot offline (deterministic).
+- `MOVEBANK_MODE=live npm run ingest` re-reads them from the **live** public service
+  end to end — proven: e.g. *Mistral* +31k, *Pilgrim* +49k real fixes pulled.
+- Two facts this surfaced and hardened: (a) a single individual can return **>500k**
+  fixes, so `normalizeFixes` pushes in a loop (spreading overflowed the arg stack) and
+  live reads are **bounded** to `MOVEBANK_LOOKBACK_DAYS` (default 120); (b) the demo
+  clock is anchored to the capture instant so a frozen snapshot stays honest.
+
 ## Going live (what to swap)
 
 - **Data**: set `MOVEBANK_MODE=live`. Public studies read with no token via the public JSON
   service (validated above); the v2-REST surface and study enumeration need a free Movebank
   account + token. The client already implements the license-acceptance handshake and the
   permission-denied vs no-data distinction.
-- **Verified European roster**: the binding human step. Supply fully-public European study
-  IDs (storks/ospreys/ibises — the families the seed is modelled on), accept any license
-  terms, set `provenance.verified = true`, and let the validated client ingest them.
-  `npm run curate` ranks candidates.
-- **Roster**: replace the synthetic seed with curated, **verified** individuals
-  (`provenance.verified = true`) from fully-public studies; `npm run curate` ranks
-  candidates. Owner resolutions (death/tag-removed/study-end) come from deployment +
-  mortality reference data via a metadata sync into `repo.setResolution`.
+- **Verify provenance (the one binding human step)**: the roster is already real (above),
+  but `provenance.verified` is `false`. For each study, open its Movebank page, confirm the
+  exact license + PI + citation/DOI, fill them into `realProvenance()` in `src/roster/seed.ts`,
+  and flip `verified = true`. `npm run curate` ranks the candidates and prints exactly what
+  needs confirming. Owner resolutions (death/tag-removed/study-end) should come from real
+  deployment + mortality reference data via a metadata sync into `repo.setResolution` —
+  the one we apply to the Swiss kite (`study-ended`) is an honest placeholder pending that.
+- **Source the missing species**: the fully-public live set is stork-heavy. There is currently
+  **no** fully-public Northern Bald Ibis or live European osprey, so those families (and the
+  "over Lake Geneva" flagship) need either a licensed study (a human license-acceptance step)
+  or a different fully-public source.
 - **Places**: a `Geocoder` seam exists (`src/domain/geocode.ts`) — `GazetteerGeocoder`
   (offline default) and `NominatimGeocoder` (live OSM reverse-geocode, cached + UA per the
   usage policy). In production, resolve names during ingestion so grounding stays pure.

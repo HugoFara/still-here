@@ -146,7 +146,8 @@ export class RosterService {
       studyName: study.name,
       principalInvestigator: study.provenance.principalInvestigator,
       provenanceVerified: study.provenance.verified,
-      dataIsSynthetic: !study.provenance.verified,
+      // Real-but-unverified ≠ synthetic. Only a demo placeholder is synthetic.
+      dataIsSynthetic: ind.synthetic ?? false,
     };
     const packet = buildGroundingPacket(ind, fixes, status, ctx);
     const gen = await this.generator.generate(ind, fixes, status, ctx);
@@ -181,7 +182,7 @@ export class RosterService {
         license: study.provenance.license,
         verified: study.provenance.verified,
         citation: study.provenance.citation ?? null,
-        dataIsSynthetic: !study.provenance.verified,
+        dataIsSynthetic: ind.synthetic ?? false,
       },
       status: {
         state: status.state,

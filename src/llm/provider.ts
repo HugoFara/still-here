@@ -32,6 +32,12 @@ function pronouns(sex: GroundingPacket["sex"]): { subj: string; obj: string; pos
   return { subj: "they", obj: "them", poss: "their" };
 }
 
+/** Subject-verb agreement: singular "he/she" vs. singular-"they" (plural verb).
+ *  Most real Movebank individuals have no recorded sex, so "they" is common. */
+function agree(sex: GroundingPacket["sex"], singular: string, plural: string): string {
+  return sex === "unknown" ? plural : singular;
+}
+
 function placePhrase(p: GroundingPacket["latestPlace"]): string {
   if (!p) return "an unknown location";
   const where = p.near ? `near ${p.place.name}` : `in ${p.place.region}`;
@@ -64,7 +70,7 @@ export class MockLLMProvider implements LLMProvider {
         p.lastLegHours !== null && p.lastLegHours <= 36 ? "since yesterday" : "on the latest leg";
       parts.push(`About ${roundKm(p.lastLegKm)} km ${p.direction} ${span}.`);
     } else {
-      parts.push(`${pronouns(p.sex).subj} has stayed put since the last fix.`);
+      parts.push(`${pronouns(p.sex).subj} ${agree(p.sex, "has", "have")} stayed put since the last fix.`);
     }
     if (p.landmarkCrossed) {
       parts.push(`${pronouns(p.sex).subj} recently passed ${p.landmarkCrossed}.`);
@@ -89,7 +95,7 @@ export class MockLLMProvider implements LLMProvider {
         `Over ${Math.round(p.daysTracked)} days we've followed ${pr.obj} ${roundKm(p.totalTrackKm)} km from ${p.startPlace.place.name}.`,
       );
     }
-    parts.push(`We'll keep the place warm until ${pr.subj} checks back in.`);
+    parts.push(`We'll keep the place warm until ${pr.subj} ${agree(p.sex, "checks", "check")} back in.`);
     return capitalizeJoin(parts);
   }
 

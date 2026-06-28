@@ -5,7 +5,7 @@
  *   npm run curate
  */
 
-import { buildSeed } from "./seed.ts";
+import { buildSeed, DEMO_NOW } from "./seed.ts";
 import { buildSignals, scoreCandidate } from "./scoring.ts";
 import { computeStatus } from "../domain/continuity.ts";
 
@@ -14,7 +14,7 @@ function pct(x: number): string {
 }
 
 function main(): void {
-  const now = Date.now();
+  const now = DEMO_NOW;
   const seed = buildSeed(now);
   const studyById = new Map(seed.studies.map((s) => [s.id, s]));
 
@@ -38,7 +38,7 @@ function main(): void {
     return y.score.score - x.score.score;
   });
 
-  console.log("\nCURATED ROSTER (synthetic demo — provenance UNVERIFIED, validate on Movebank)\n");
+  console.log("\nCURATED ROSTER (REAL Movebank tracks — provenance UNVERIFIED, confirm PI/license on Movebank)\n");
   console.log(
     "  rank  name        species                 state             score  ind/prox/leg/cad   live",
   );

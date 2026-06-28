@@ -267,10 +267,16 @@ function normalizeFixes(json: unknown, individualId: string): Fix[] {
   const root = (json ?? {}) as Record<string, unknown>;
   const raw: unknown[] = [];
 
-  if (Array.isArray(root.locations)) raw.push(...root.locations);
+  // NOTE: push items in a loop, never `raw.push(...arr)`. A real study can return
+  // hundreds of thousands of locations for one individual, and spreading that
+  // into push() overflows the argument stack ("Maximum call stack size exceeded").
+  const pushAll = (arr: unknown[]): void => {
+    for (const x of arr) raw.push(x);
+  };
+  if (Array.isArray(root.locations)) pushAll(root.locations);
   if (Array.isArray(root.individuals)) {
     for (const ind of root.individuals as Record<string, unknown>[]) {
-      if (Array.isArray(ind.locations)) raw.push(...ind.locations);
+      if (Array.isArray(ind.locations)) pushAll(ind.locations);
     }
   }
   if (Array.isArray(root.features)) {

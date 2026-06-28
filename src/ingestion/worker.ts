@@ -33,11 +33,21 @@ export class IngestionWorker {
   private readonly repo: Repository;
   private readonly client: MovebankClient;
   private readonly generator: NarrativeGenerator;
+  /** Bound each live read to the last N ms, so a recurring poll never re-pulls
+   *  years of history (a real study individual can have >500k fixes). Undefined
+   *  = unbounded (the offline fixture path, where the transport ignores it). */
+  private readonly lookbackMs: number | undefined;
 
-  constructor(repo: Repository, client: MovebankClient, generator: NarrativeGenerator) {
+  constructor(
+    repo: Repository,
+    client: MovebankClient,
+    generator: NarrativeGenerator,
+    opts: { lookbackMs?: number } = {},
+  ) {
     this.repo = repo;
     this.client = client;
     this.generator = generator;
+    this.lookbackMs = opts.lookbackMs;
   }
 
   /** Ingest one individual. `now` is injected for deterministic status. */
@@ -47,11 +57,14 @@ export class IngestionWorker {
     let newFixes = 0;
 
     try {
-      const fixes = await this.client.getLocations({
+      const args: Parameters<MovebankClient["getLocations"]>[0] = {
         studyId: individual.studyId,
         individualId: individual.id,
         localIdentifier: individual.localIdentifier,
-      });
+      };
+      // Public-JSON expects a millisecond-epoch timestamp_start; bound the window.
+      if (this.lookbackMs !== undefined) args.start = String(now - this.lookbackMs);
+      const fixes = await this.client.getLocations(args);
       newFixes = this.repo.upsertFixes(fixes);
     } catch (err) {
       if (err instanceof PermissionDeniedError) {
@@ -88,7 +101,10 @@ export class IngestionWorker {
         studyName: study?.name ?? individual.studyId,
         principalInvestigator: study?.provenance.principalInvestigator,
         provenanceVerified: study?.provenance.verified ?? false,
-        dataIsSynthetic: !(study?.provenance.verified ?? false),
+        // Real-but-unverified data is NOT synthetic; only a hand-built demo
+        // placeholder is. Keep the two distinct so real positions are never
+        // mislabelled "demo".
+        dataIsSynthetic: individual.synthetic ?? false,
       });
       narrative = gen.cached ? "cached" : "generated";
     }
@@ -104,11 +120,27 @@ export class IngestionWorker {
     return summary;
   }
 
-  /** Ingest every individual in the store. */
+  /**
+   * Ingest every individual in the store. Resilient: one individual failing
+   * (e.g. an unreachable study during a live run) is recorded and skipped rather
+   * than aborting the whole batch.
+   */
   async run(now: number): Promise<IngestSummary[]> {
     const out: IngestSummary[] = [];
     for (const ind of this.repo.listIndividuals()) {
-      out.push(await this.ingestIndividual(ind, now));
+      try {
+        out.push(await this.ingestIndividual(ind, now));
+      } catch (err) {
+        const status = this.repo.getStatus(ind.id);
+        out.push({
+          individualId: ind.id,
+          state: status?.state ?? "RESOLVED_UNKNOWN",
+          newFixes: 0,
+          apiPermission: "ok",
+          narrative: "skipped",
+          note: `ingest error, skipped: ${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
     }
     return out;
   }

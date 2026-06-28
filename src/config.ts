@@ -11,6 +11,9 @@ export interface Config {
     username: string | undefined;
     password: string | undefined;
     accessToken: string | undefined;
+    /** Live reads are bounded to this many days back (a few-times-a-day poll
+     *  must not re-pull years of history). */
+    ingestLookbackDays: number;
   };
   narrative: {
     provider: "mock" | "anthropic";
@@ -38,6 +41,7 @@ export function loadConfig(): Config {
       username: env("MOVEBANK_USERNAME"),
       password: env("MOVEBANK_PASSWORD"),
       accessToken: env("MOVEBANK_ACCESS_TOKEN"),
+      ingestLookbackDays: Number(env("MOVEBANK_LOOKBACK_DAYS", "120")),
     },
     narrative: {
       provider: (env("NARRATIVE_PROVIDER", "mock") as "mock" | "anthropic"),

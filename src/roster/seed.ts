@@ -1,13 +1,23 @@
 /**
- * Hand-curated seed roster (brief §4): 7 European/Eurasian migratory individuals
- * chosen to (a) collapse distance toward a Geneva user and (b) exercise EVERY
- * continuity state so the §5 engine and the UI can be demonstrated offline.
+ * Verified-candidate roster (brief §4), sourced from REAL Movebank data.
  *
- * HONESTY: provenance.verified is false for all of them and the tracks are
- * SYNTHETIC. Study names reference the real public Movebank study families these
- * are modelled on, but PIs/licenses/DOIs are placeholders a human MUST verify
- * against live Movebank before showing anything as real. Nothing here should be
- * presented to an end user as a confirmed real-time position.
+ * Every track here is a genuine, unmodified Movebank snapshot of a real named
+ * individual from a fully-public study (license terms suspended), captured
+ * 2026-06-26 and downsampled for the offline build (see real-tracks.generated.ts).
+ * The continuity states are NOT engineered — they fall out of each bird's real
+ * last-fix recency against the capture instant:
+ *
+ *   Louis, Noé, Mistral, Pilgrim   LIVE              (reported within a day)
+ *   Rosel                          QUIET             (genuinely silent 14 days)
+ *   Europa                         RESOLVED_UNKNOWN  (silent 64 days, no resolution)
+ *   Aare (Swiss kite)              RESOLVED_KNOWN    (study deployment ended 2022)
+ *
+ * HONESTY: `provenance.verified` is still false for all of them — the *data* is
+ * real but the PI / exact license / citation must be confirmed on each study's
+ * Movebank page before any of these is published as vetted. That is the binding
+ * human step (README → "Going live"). It is DISTINCT from synthetic: only the
+ * one PERMISSION_LOST demonstrator below is fabricated, because a public study
+ * cannot, by definition, revoke your access.
  */
 
 import type {
@@ -16,82 +26,78 @@ import type {
   OwnerResolution,
   Provenance,
   Study,
+  Taxon,
 } from "../domain/types.ts";
-import type { LatLon } from "../domain/geo.ts";
 import { buildTrack } from "./track-builder.ts";
+import { CAPTURED_AT, REAL_TRACKS } from "./real-tracks.generated.ts";
 
 const HOUR = 3_600_000;
-const DAY = 24 * HOUR;
 
-// Flyway waypoints (approx). See src/domain/places.ts for the matching gazetteer.
-const W = {
-  constance: { lat: 47.66, lon: 9.18 },
-  camargue: { lat: 43.53, lon: 4.42 },
-  ebro: { lat: 40.72, lon: 0.73 },
-  extremadura: { lat: 39.2, lon: -6.1 },
-  donana: { lat: 37.0, lon: -6.45 },
-  gibraltar: { lat: 35.95, lon: -5.6 },
-  tangier: { lat: 35.76, lon: -5.83 },
-  senegal: { lat: 16.5, lon: -15.5 },
-  geneva: { lat: 46.45, lon: 6.6 },
-  burghausen: { lat: 48.17, lon: 12.83 },
-  apennines: { lat: 43.5, lon: 11.8 },
-  orbetello: { lat: 42.44, lon: 11.2 },
-  rutland: { lat: 52.65, lon: -0.63 },
-  biscay: { lat: 45.6, lon: -1.1 },
-  bosphorus: { lat: 41.1, lon: 29.05 },
-  nile: { lat: 27.0, lon: 31.2 },
-  sahara: { lat: 25.0, lon: -10.0 },
-} satisfies Record<string, LatLon>;
+/** Demo clock: the instant the live cohort was current. Anchors continuity so
+ *  the offline snapshot's states stay stable and honest regardless of wall time. */
+export const DEMO_NOW = CAPTURED_AT;
 
-function provenance(over: Partial<Provenance> & { studyId: string; studyName: string }): Provenance {
+const BIRD = "european-migratory-bird";
+
+const TAXA: Record<string, Taxon> = {
+  "Ciconia ciconia": { genus: "Ciconia", species: "ciconia", commonName: "White Stork" },
+  "Streptopelia turtur": { genus: "Streptopelia", species: "turtur", commonName: "European Turtle Dove" },
+  "Pernis apivorus": { genus: "Pernis", species: "apivorus", commonName: "European Honey Buzzard" },
+  "Milvus milvus": { genus: "Milvus", species: "milvus", commonName: "Red Kite" },
+};
+
+function studyPageUrl(id: string): string {
+  return `https://www.movebank.org/cms/webapp?gwt_fragment=page=studies,path=study${id}`;
+}
+
+/** Honest provenance for a real, fully-public study whose attribution is not yet
+ *  human-verified. License terms are suspended on Movebank (freely downloadable),
+ *  but the exact license + PI + citation live on the study page and MUST be
+ *  confirmed before publishing — hence verified:false. */
+function realProvenance(studyId: string, studyName: string): Provenance {
   return {
-    principalInvestigator: "Study PI (placeholder — verify on Movebank)",
-    license: "CC BY-NC 4.0 (unverified placeholder)",
-    licenseTermsUrl: "https://www.movebank.org/cms/movebank-content/data-policy",
-    citation: "Synthetic demo — replace with the real study citation/DOI before use.",
+    studyId,
+    studyName,
+    principalInvestigator: "see Movebank study page (to confirm)",
+    license: "Fully public — Movebank license terms suspended; confirm exact license + citation",
+    licenseTermsUrl: studyPageUrl(studyId),
+    citation: `Movebank study ${studyId} — confirm citation/DOI on the study page before publishing.`,
     verified: false,
-    ...over,
   };
 }
 
+const STUDY_NAMES: Record<string, string> = {
+  "21231406": "LifeTrack White Stork SW Germany",
+  "1562253659": "LifeTrack White Stork Sarralbe [ID_PROG 1093]",
+  "3413045568": "Habitrack European Turtle Dove",
+  "186178781": "Raptors NABU Mössingen public",
+  "3883692006": "MPIAB ELSA 2.0 White Stork (tagged 2024-2025)",
+  "672882373": "Milvus milvus atlantis (Marcuard)",
+};
+
+/** The synthetic study backing the PERMISSION_LOST demonstrator only. */
+const SYNTHETIC_STUDY_ID = "demo-access-controlled";
+
 export const SEED_STUDIES: Study[] = [
-  {
-    id: "study-stork",
-    name: "LifeTrack White Stork (demo — synthetic track)",
+  ...Object.entries(STUDY_NAMES).map(([id, name]): Study => ({
+    id,
+    name,
     isPublic: true,
     studyType: "telemetry",
-    provenance: provenance({ studyId: "study-stork", studyName: "LifeTrack White Stork (demo)" }),
-  },
+    provenance: realProvenance(id, name),
+  })),
   {
-    id: "study-osprey",
-    name: "European Osprey Migration (demo — synthetic track)",
+    id: SYNTHETIC_STUDY_ID,
+    name: "Access-controlled regional study (demo — access revoked at runtime)",
     isPublic: true,
     studyType: "telemetry",
-    provenance: provenance({ studyId: "study-osprey", studyName: "European Osprey Migration (demo)" }),
-  },
-  {
-    id: "study-ibis",
-    name: "Waldrappteam Northern Bald Ibis reintroduction (demo — synthetic track)",
-    isPublic: true,
-    studyType: "telemetry",
-    provenance: provenance({ studyId: "study-ibis", studyName: "Waldrappteam Northern Bald Ibis (demo)" }),
-  },
-  {
-    id: "study-eagle",
-    name: "LifeTrack Lesser Spotted Eagle (demo — synthetic track)",
-    isPublic: true,
-    studyType: "telemetry",
-    provenance: provenance({ studyId: "study-eagle", studyName: "LifeTrack Lesser Spotted Eagle (demo)" }),
-  },
-  {
-    // Public listing, but the per-animal data access is revoked at runtime to
-    // demonstrate the PERMISSION_LOST → retire-silently path.
-    id: "study-stork-private",
-    name: "White Stork regional study (demo — access revoked at runtime)",
-    isPublic: true,
-    studyType: "telemetry",
-    provenance: provenance({ studyId: "study-stork-private", studyName: "White Stork regional study (demo)" }),
+    provenance: {
+      studyId: SYNTHETIC_STUDY_ID,
+      studyName: "Access-controlled regional study (demo)",
+      principalInvestigator: "n/a (synthetic demonstrator)",
+      license: "n/a — synthetic demonstrator",
+      verified: false,
+    },
   },
 ];
 
@@ -110,178 +116,155 @@ export interface SeedData {
   animals: SeedAnimal[];
 }
 
-const BIRD = "european-migratory-bird";
+/** Real fixes for a captured individual, tagged with our internal id. */
+function realFixes(internalId: string, trackKey: string): Fix[] {
+  const t = REAL_TRACKS[trackKey];
+  if (!t) throw new Error(`missing real track for ${trackKey}`);
+  return t.fixes.map(([timestamp, lat, lon]): Fix => ({
+    individualId: internalId,
+    timestamp,
+    lat,
+    lon,
+    sensorType: "gps",
+  }));
+}
 
-/** Identity with a type annotation — forces each literal to satisfy Individual. */
-const individual = (i: Individual): Individual => i;
+interface RealSpec {
+  id: string;
+  trackKey: string;
+  /** Display name. */
+  name: string;
+  /** True when we assigned the name (no personal name in the study record). */
+  nameIsAssigned: boolean;
+  note: string;
+}
 
-/** Build the full seed anchored to `now` so continuity states are always fresh. */
+function realAnimal(spec: RealSpec, ownerResolution?: OwnerResolution): SeedAnimal {
+  const t = REAL_TRACKS[spec.trackKey]!;
+  const taxon = TAXA[t.taxonCanonical] ?? {
+    genus: t.taxonCanonical.split(" ")[0] ?? "unknown",
+    species: t.taxonCanonical.split(" ")[1] ?? "sp.",
+    commonName: t.taxonCanonical,
+  };
+  const individual: Individual = {
+    id: spec.id,
+    studyId: t.studyId,
+    localIdentifier: t.localIdentifier,
+    taxon,
+    name: spec.name,
+    nameIsAssigned: spec.nameIsAssigned,
+    sex: "unknown", // not fabricated; confirm from reference data when verifying
+    referenceNotes: spec.note,
+    expectedFixesPerWeek: 7,
+  };
+  const animal: SeedAnimal = { theme: BIRD, individual, fixes: realFixes(spec.id, spec.trackKey) };
+  if (ownerResolution) animal.ownerResolution = ownerResolution;
+  return animal;
+}
+
+const SNAPSHOT = "Real Movebank track, captured 2026-06-26 and downsampled for the offline build; live ingestion reads full resolution.";
+
+/** Build the full seed. `now` only affects the synthetic demonstrator's recency;
+ *  the real tracks carry their own absolute timestamps. */
 export function buildSeed(now: number): SeedData {
+  const kite = realFixes("kite-337", "kite-337");
+  const kiteLastAt = kite[kite.length - 1]!.timestamp;
+
   const animals: SeedAnimal[] = [
-    // 1. LIVE — White Stork mid-migration toward the Strait of Gibraltar.
-    {
-      theme: BIRD,
-      individual: individual({
-        id: "stork-aila",
-        studyId: "study-stork",
-        localIdentifier: "DER AU041",
-        taxon: { genus: "Ciconia", species: "ciconia", commonName: "White Stork" },
-        name: "Aila",
-        nameIsAssigned: false,
-        sex: "f",
-        referenceNotes: "Modelled on a juvenile white stork tagged near Lake Constance. Synthetic demo track.",
-        expectedFixesPerWeek: 7,
-      }),
-      fixes: buildTrack({
-        individualId: "stork-aila",
-        waypoints: [W.constance, W.camargue, W.ebro, W.donana, W.gibraltar, W.tangier],
-        endAt: now - 6 * HOUR,
-        cadenceHours: 24,
-        count: 55,
-      }),
-    },
-
-    // 2. LIVE — Osprey heading for the Sahel.
-    {
-      theme: BIRD,
-      individual: individual({
-        id: "osprey-brennus",
-        studyId: "study-osprey",
-        localIdentifier: "OSP-2207",
-        taxon: { genus: "Pandion", species: "haliaetus", commonName: "Osprey" },
-        name: "Brennus",
-        nameIsAssigned: false,
-        sex: "m",
-        referenceNotes: "Modelled on an English-breeding osprey wintering in West Africa. Synthetic demo track.",
-        expectedFixesPerWeek: 7,
-      }),
-      fixes: buildTrack({
-        individualId: "osprey-brennus",
-        waypoints: [W.rutland, W.biscay, W.ebro, W.donana, W.gibraltar, W.senegal],
-        endAt: now - 20 * HOUR,
-        cadenceHours: 24,
-        count: 48,
-      }),
-    },
-
-    // 3. LIVE — Northern Bald Ibis passing close to the user (Lake Geneva).
-    {
-      theme: BIRD,
-      individual: individual({
-        id: "ibis-tara",
-        studyId: "study-ibis",
-        localIdentifier: "NBI-Tara",
-        taxon: { genus: "Geronticus", species: "eremita", commonName: "Northern Bald Ibis" },
-        name: "Tara",
-        nameIsAssigned: false,
-        sex: "f",
-        referenceNotes: "Modelled on a reintroduced bald ibis migrating Bavaria→Tuscany past Lake Geneva. Synthetic demo track.",
-        expectedFixesPerWeek: 7,
-      }),
-      fixes: buildTrack({
-        individualId: "ibis-tara",
-        waypoints: [W.burghausen, W.constance, W.geneva, W.apennines, W.orbetello],
-        endAt: now - 10 * HOUR,
-        cadenceHours: 24,
-        count: 30,
-      }),
-    },
-
-    // 4. QUIET — White Stork that has paused; last fix 6 days ago.
-    {
-      theme: BIRD,
-      individual: individual({
-        id: "stork-niko",
-        studyId: "study-stork",
-        localIdentifier: "DER AU058",
-        taxon: { genus: "Ciconia", species: "ciconia", commonName: "White Stork" },
-        name: "Niko",
-        nameIsAssigned: false,
-        sex: "m",
-        referenceNotes: "Modelled on a white stork that has settled to feed in western Spain. Synthetic demo track.",
-        expectedFixesPerWeek: 7,
-      }),
-      fixes: buildTrack({
-        individualId: "stork-niko",
-        waypoints: [W.constance, W.camargue, W.extremadura],
-        endAt: now - 6 * DAY,
-        cadenceHours: 24,
-        count: 35,
-      }),
-    },
-
-    // 5. RESOLVED_KNOWN — Osprey whose tag was recovered / deployment ended.
-    {
-      theme: BIRD,
-      ownerResolution: {
-        kind: "tag-removed",
-        at: now - 10 * DAY,
-        note: "Tag recovered in good condition; the study deployment for this bird ended.",
+    // LIVE — White Stork back on the Upper Rhine after wintering in Catalonia.
+    realAnimal({
+      id: "stork-louis",
+      trackKey: "stork-louis",
+      name: "Louis",
+      nameIsAssigned: false,
+      note: `Real White Stork (Movebank DER AU050), LifeTrack SW Germany. ${SNAPSHOT}`,
+    }),
+    // LIVE — White Stork breeding at Sarralbe, NE France; winters in Iberia.
+    realAnimal({
+      id: "stork-noe",
+      trackKey: "stork-noe",
+      name: "Noé",
+      nameIsAssigned: false,
+      note: `Real White Stork (Movebank CK16336), LifeTrack Sarralbe. ${SNAPSHOT}`,
+    }),
+    // LIVE — Turtle Dove tagged on Menorca, now in the Rhône valley (nearest Geneva).
+    realAnimal({
+      id: "dove-mistral",
+      trackKey: "dove-menorca1",
+      name: "Mistral",
+      nameIsAssigned: true,
+      note: `Real European Turtle Dove (Movebank "SP_Menorca 2025_1"); no personal name in the record, so we assigned one. ${SNAPSHOT}`,
+    }),
+    // LIVE — Honey Buzzard: long-distance Afro-Palearctic migrant from SW Germany.
+    realAnimal({
+      id: "buzzard-pilgrim",
+      trackKey: "buzzard-honey",
+      name: "Pilgrim",
+      nameIsAssigned: true,
+      note: `Real European Honey Buzzard (Movebank "Honey Buzzard 12212 / DER KT2169"); name assigned by us. ${SNAPSHOT}`,
+    }),
+    // QUIET — White Stork genuinely silent ~14 days mid-route; resting, not alarm.
+    realAnimal({
+      id: "stork-rosel",
+      trackKey: "stork-rosel",
+      name: "Rosel",
+      nameIsAssigned: false,
+      note: `Real White Stork (Movebank AFV89), MPIAB ELSA 2.0. Tag last reported ~14 days before capture. ${SNAPSHOT}`,
+    }),
+    // RESOLVED_UNKNOWN — White Stork whose tag fell silent 64 days ago; honest closure.
+    realAnimal({
+      id: "stork-europa",
+      trackKey: "stork-europa",
+      name: "Europa",
+      nameIsAssigned: false,
+      note: `Real White Stork (Movebank DER A1A26), LifeTrack SW Germany. Signal stopped ~64 days before capture; cause unknown. ${SNAPSHOT}`,
+    }),
+    // RESOLVED_KNOWN — Swiss Red Kite whose study deployment ended in 2022.
+    realAnimal(
+      {
+        id: "kite-aare",
+        trackKey: "kite-337",
+        name: "Aare",
+        nameIsAssigned: true,
+        note: `Real Red Kite (Movebank individual "337", Milvus milvus atlantis), resident on the Swiss plateau near Bern; name assigned by us. ${SNAPSHOT}`,
       },
-      individual: individual({
-        id: "osprey-skylla",
-        studyId: "study-osprey",
-        localIdentifier: "OSP-1991",
-        taxon: { genus: "Pandion", species: "haliaetus", commonName: "Osprey" },
-        name: "Skylla",
-        nameIsAssigned: false,
-        sex: "f",
-        referenceNotes: "Modelled on an osprey whose tracker reached end-of-deployment in Andalusia. Synthetic demo track.",
-        expectedFixesPerWeek: 7,
-      }),
-      fixes: buildTrack({
-        individualId: "osprey-skylla",
-        waypoints: [W.rutland, W.biscay, W.donana],
-        endAt: now - 10 * DAY,
-        cadenceHours: 24,
-        count: 30,
-      }),
-    },
+      {
+        kind: "study-ended",
+        at: kiteLastAt,
+        note: "This Movebank study's public track for this bird ends in September 2022; the deployment is over.",
+      },
+    ),
 
-    // 6. RESOLVED_UNKNOWN — Eagle whose signal was lost over the Sahara.
-    {
-      theme: BIRD,
-      individual: individual({
-        id: "eagle-viljo",
-        studyId: "study-eagle",
-        localIdentifier: "LSE-Viljo",
-        taxon: { genus: "Clanga", species: "pomarina", commonName: "Lesser Spotted Eagle" },
-        name: "Viljo",
-        nameIsAssigned: false,
-        sex: "m",
-        referenceNotes: "Modelled on a lesser spotted eagle crossing the Bosphorus toward Africa. Signal ended over the Sahara. Synthetic demo track.",
-        expectedFixesPerWeek: 3.5,
-      }),
-      fixes: buildTrack({
-        individualId: "eagle-viljo",
-        waypoints: [W.bosphorus, W.nile, W.sahara],
-        endAt: now - 40 * DAY,
-        cadenceHours: 48,
-        count: 25,
-      }),
-    },
-
-    // 7. PERMISSION_LOST — recent fixes exist, but API access is revoked.
+    // PERMISSION_LOST — the one SYNTHETIC entry. A public study cannot revoke your
+    // access, so this mechanism (denial ≠ death, §2.3) cannot be sourced from real
+    // public data. Clearly labelled synthetic; its recent track would read LIVE if
+    // access were not revoked — that is exactly the point.
     {
       theme: BIRD,
       permissionLost: true,
-      individual: individual({
-        id: "stork-maud",
-        studyId: "study-stork-private",
-        localIdentifier: "DER AX002",
-        taxon: { genus: "Ciconia", species: "ciconia", commonName: "White Stork" },
-        name: "Maud",
-        nameIsAssigned: false,
-        sex: "f",
-        referenceNotes: "Demonstrates permission-loss: the data owner revoked API access. Must retire silently, never shown as 'disappeared'. Synthetic demo track.",
+      individual: {
+        id: "demo-permission-lost",
+        studyId: SYNTHETIC_STUDY_ID,
+        localIdentifier: "DEMO-PL-01",
+        taxon: TAXA["Ciconia ciconia"]!,
+        name: "Pip",
+        nameIsAssigned: true,
+        sex: "unknown",
+        synthetic: true,
+        referenceNotes:
+          "SYNTHETIC demonstrator (not a real animal). Exercises the permission-lost → retire-silently path: a tag still transmitting but whose data owner revoked API access. Cannot be sourced from a public study by definition.",
         expectedFixesPerWeek: 7,
-      }),
+      },
       fixes: buildTrack({
-        individualId: "stork-maud",
-        waypoints: [W.constance, W.camargue, W.donana],
-        endAt: now - 2 * DAY,
+        individualId: "demo-permission-lost",
+        waypoints: [
+          { lat: 47.66, lon: 9.18 },
+          { lat: 46.95, lon: 7.45 },
+          { lat: 44.5, lon: 4.8 },
+        ],
+        endAt: now - 6 * HOUR,
         cadenceHours: 24,
-        count: 30,
+        count: 20,
       }),
     },
   ];

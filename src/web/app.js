@@ -94,7 +94,7 @@ function renderAnimal(p) {
   const title = isNarrative ? esc(p.animal.name) : esc(p.animal.species);
   const kicker = isNarrative
     ? esc(p.animal.species)
-    : `${esc(p.animal.localIdentifier)} · ${esc(p.animal.studyName || "")}`;
+    : `${esc(p.animal.localIdentifier)} · ${esc(p.provenance.studyName || "")}`;
   const assignedNote =
     isNarrative && p.animal.nameIsAssigned
       ? `<div class="assigned">name assigned by us — not from the study record</div>`
@@ -107,9 +107,18 @@ function renderAnimal(p) {
          p.status.gapDays != null ? `, ${Math.max(1, Math.round(p.status.gapDays))} day(s) ago` : ""
        }.</p>`;
 
-  const synthetic = p.provenance.dataIsSynthetic
-    ? `<div class="synthetic-banner">⚠︎ Demo data — this is a synthetic track and the study provenance/license is <strong>unverified</strong>. Not a real-time position.</div>`
-    : "";
+  const asOf = j.latestFixAt ? new Date(j.latestFixAt).toISOString().slice(0, 10) : null;
+  // Two honesty modes: a fabricated demo track vs. a REAL track whose study
+  // provenance/license is not yet human-verified. Never conflate the two.
+  let banner = "";
+  if (p.provenance.dataIsSynthetic) {
+    banner = `<div class="synthetic-banner">⚠︎ Demo data — this is a <strong>synthetic</strong> track (mechanism demonstrator). Not a real animal or position.</div>`;
+  } else if (!p.provenance.verified) {
+    banner = `<div class="unverified-banner">Real Movebank track${
+      asOf ? `, snapshot as of ${asOf}` : ""
+    } — a fixed snapshot, not a live position. Study provenance &amp; license are <strong>pending verification</strong> before publication.</div>`;
+  }
+  const synthetic = banner;
 
   stage.innerHTML = `
     ${synthetic}

@@ -71,7 +71,7 @@ test("ranking puts excluded candidates last", () => {
   assert.equal(ranked[2]!.individualId, "excluded");
 });
 
-test("on real seed data, the Lake-Geneva ibis tops proximity for a Geneva user", () => {
+test("on the real roster, proximity scoring is monotonic in distance to Geneva", () => {
   const seed = buildSeed(NOW);
   const studyById = new Map(seed.studies.map((s) => [s.id, s]));
   const scored = seed.animals
@@ -79,17 +79,18 @@ test("on real seed data, the Lake-Geneva ibis tops proximity for a Geneva user",
     .map((a) => {
       const study = studyById.get(a.individual.studyId)!;
       const signals = buildSignals(a.individual, a.fixes, study, NOW, GENEVA);
-      return { id: a.individual.id, score: scoreCandidate(signals) };
-    });
+      return { id: a.individual.id, dist: signals.minDistanceKmToReference, score: scoreCandidate(signals) };
+    })
+    .sort((x, y) => x.dist - y.dist);
 
-  const tara = scored.find((x) => x.id === "ibis-tara")!;
-  const others = scored.filter((x) => x.id !== "ibis-tara");
-  for (const o of others) {
+  // Closer animals never score lower on proximity than farther ones (the
+  // distance-collapse formula, validated on real European tracks).
+  for (let i = 1; i < scored.length; i++) {
     assert.ok(
-      tara.score.components.proximity >= o.score.components.proximity,
-      `Tara should be at least as close as ${o.id}`,
+      scored[i - 1]!.score.components.proximity >= scored[i]!.score.components.proximity,
+      `proximity non-increasing with distance (${scored[i - 1]!.id} vs ${scored[i]!.id})`,
     );
   }
-  // And the live seed animals are not excluded.
-  assert.equal(tara.score.excluded, false);
+  // Real, fully-public studies are never hard-gated out.
+  for (const s of scored) assert.equal(s.score.excluded, false, `${s.id} should not be excluded`);
 });

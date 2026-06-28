@@ -31,24 +31,25 @@ test("end-to-end ingestion produces the full spread of continuity states", async
   const summaries = await worker.run(NOW);
   const byId = new Map(summaries.map((s) => [s.individualId, s]));
 
-  assert.equal(byId.get("stork-aila")!.state, "LIVE");
-  assert.equal(byId.get("ibis-tara")!.state, "LIVE");
-  assert.equal(byId.get("stork-niko")!.state, "QUIET");
-  assert.equal(byId.get("osprey-skylla")!.state, "RESOLVED_KNOWN");
-  assert.equal(byId.get("eagle-viljo")!.state, "RESOLVED_UNKNOWN");
-  assert.equal(byId.get("stork-maud")!.state, "PERMISSION_LOST");
+  // States fall out of the REAL tracks' last-fix recency, not engineering.
+  assert.equal(byId.get("stork-louis")!.state, "LIVE");
+  assert.equal(byId.get("dove-mistral")!.state, "LIVE");
+  assert.equal(byId.get("stork-rosel")!.state, "QUIET");
+  assert.equal(byId.get("kite-aare")!.state, "RESOLVED_KNOWN");
+  assert.equal(byId.get("stork-europa")!.state, "RESOLVED_UNKNOWN");
+  assert.equal(byId.get("demo-permission-lost")!.state, "PERMISSION_LOST");
   repo.close();
 });
 
 test("permission-loss retires silently: denied, 0 fixes, no narrative", async () => {
   const { repo, worker } = await setup();
   await worker.run(NOW);
-  const maud = repo.getStatus("stork-maud")!;
-  assert.equal(maud.state, "PERMISSION_LOST");
-  assert.equal(maud.directives.retire, true);
-  assert.equal(repo.getFixes("stork-maud").length, 0, "no fixes ingested under denial");
+  const pip = repo.getStatus("demo-permission-lost")!;
+  assert.equal(pip.state, "PERMISSION_LOST");
+  assert.equal(pip.directives.retire, true);
+  assert.equal(repo.getFixes("demo-permission-lost").length, 0, "no fixes ingested under denial");
   // No narrative cache entry was written for the retired animal.
-  const key = `stork-maud:update:${maud.observed.lastFixAt}:PERMISSION_LOST`;
+  const key = `demo-permission-lost:update:${pip.observed.lastFixAt}:PERMISSION_LOST`;
   assert.equal(repo.getNarrative(key), null);
   repo.close();
 });
@@ -56,9 +57,9 @@ test("permission-loss retires silently: denied, 0 fixes, no narrative", async ()
 test("live animals get fixes stored and a narrative cached", async () => {
   const { repo, worker } = await setup();
   await worker.run(NOW);
-  assert.ok(repo.getFixes("stork-aila").length > 10, "fixes persisted");
-  const status = repo.getStatus("stork-aila")!;
-  const key = `stork-aila:update:${status.observed.lastFixAt}:LIVE`;
+  assert.ok(repo.getFixes("stork-louis").length > 10, "fixes persisted");
+  const status = repo.getStatus("stork-louis")!;
+  const key = `stork-louis:update:${status.observed.lastFixAt}:LIVE`;
   assert.ok(repo.getNarrative(key), "narrative cached under the batch key");
   repo.close();
 });
