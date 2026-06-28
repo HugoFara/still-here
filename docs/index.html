@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Still Here — follow one wild life</title>
+    <link rel="stylesheet" href="vendor/leaflet.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="mark">Still&nbsp;Here</span>
+        <span class="tagline">follow one wild life — and stay, even when the signal doesn't</span>
+      </div>
+      <nav>
+        <button id="nav-follow" class="nav-btn is-active">Follow</button>
+        <button id="nav-experiment" class="nav-btn">Experiment</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- Follow view -->
+      <section id="view-follow" class="layout">
+        <aside class="roster">
+          <h2>The roster</h2>
+          <p class="roster-note">A small, hand-validated set. One named life each.</p>
+          <ul id="roster-list" class="roster-list"></ul>
+        </aside>
+
+        <article id="stage" class="stage">
+          <div class="empty">Choose a life to follow.</div>
+        </article>
+      </section>
+
+      <!-- Experiment dashboard -->
+      <section id="view-experiment" class="experiment hidden">
+        <h2>Does attachment become action?</h2>
+        <p class="lede">
+          The success metric is a <em>behavior</em>, not a feeling. We measure whether the
+          individuated-narrative arm converts followers into the target action
+          (recruit-a-follower) more than the plain-map control. Assume it does
+          <strong>not</strong> until the lift is real.
+        </p>
+        <div id="funnel"></div>
+      </section>
+    </main>
+
+    <!-- Vendored Leaflet (UMD). Classic script so it sets window.L before the
+         deferred module below runs. No npm dependency — static asset only. -->
+    <script src="vendor/leaflet.js"></script>
+    <script>window.STATIC_EXPORT = true;</script>
+    <script src="app.js" type="module"></script>
+  </body>
+</html>

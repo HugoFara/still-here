@@ -11,10 +11,14 @@ never a broken map pin. At emotional peaks it offers exactly **one** consequenti
 and **measures whether attachment actually transfers to that action** via a built-in A/B test.
 
 This repo implements the [build brief](./movebank-parasocial-drief.md) as a runnable
-vertical slice. The **runtime is zero-dependency**: everything runs on the Node ≥ 24
-standard library (native TypeScript, `node:sqlite`, `node:test`, the built-in HTTP server,
-global `fetch`) with no install. `npm install` pulls only **dev-only** tooling
-(`typescript` + `@types/node`) for the optional `npm run typecheck` gate.
+vertical slice. The **server runtime has no npm dependencies**: everything runs on the
+Node ≥ 24 standard library (native TypeScript, `node:sqlite`, `node:test`, the built-in
+HTTP server, global `fetch`) with no install. The journey map uses [Leaflet](https://leafletjs.com)
+— **vendored as a static asset** in `src/web/vendor/` (not an npm dependency), with
+street/satellite tiles fetched from OpenStreetMap + Esri World Imagery at view time
+(so the map needs network). `npm install` pulls only **dev-only** tooling
+(`typescript`, `@types/node`, and `playwright` for `npm run shots` screenshots);
+`npm run typecheck` is the optional type gate.
 
 ---
 
@@ -45,11 +49,36 @@ npm run typecheck # tsc --noEmit (strict); dev-only deps
 npm run curate    # print the ranked curation report with provenance (§4 deliverable)
 npm run ingest    # re-run ingestion against existing fixtures (a few×/day in prod)
 npm run live:check # read a real fully-public Movebank study through the live client
+npm run static    # build the static GitHub Pages export into ./docs
 ```
 
 The offline demo's clock is anchored to the snapshot instant (2026-06-26), so the
 real tracks' five continuity states stay stable and honest; `MOVEBANK_MODE=live`
 uses the real clock and reads live positions.
+
+### Run anywhere (container)
+
+```bash
+docker build -t still-here-demo .      # or: podman build …
+docker run -p 8787:8787 still-here-demo  # → http://localhost:8787
+```
+
+Boots in fixture mode — no Movebank secret, no network for data. `.dockerignore`
+keeps `.env` out of the image.
+
+### Static demo → GitHub Pages
+
+`npm run static` boots the same seeded service in-process and **pre-bakes the
+deterministic fixture payloads to JSON** (both A/B arms + the successor handoff
+variants + a frozen funnel snapshot) under `./docs`, then `src/web/app.js` runs in
+static mode and loads those instead of `/api`. The whole follow experience is
+faithful — roster, the Leaflet map (its tiles are external, so they still load),
+narrative, continuity states, the successor bridge. The **live A/B measurement is
+the one thing a static host can't do** (recording events needs a server-side
+store), so the experiment view shows the seeded snapshot, labelled as such.
+
+Publish: **Settings → Pages → Source: Deploy from a branch → `main` / `/docs`** →
+`https://hugofara.github.io/still-here/`.
 
 ---
 
