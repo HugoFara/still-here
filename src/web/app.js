@@ -189,7 +189,7 @@ function renderAnimal(p) {
       ${assignedNote}
       <div class="ribbon"><span class="pill ${p.status.state}">${esc(STATE_LABEL[p.status.state] || p.status.state)}</span></div>
     </div>
-    <div class="map-wrap"><div id="journey-map"></div></div>
+    <div class="map-wrap"><div id="journey-map"></div><div class="map-scrubber" id="map-scrubber"></div></div>
     <div class="body">
       ${story}
       <div class="stats">
@@ -269,11 +269,38 @@ function renderSuccessor(s, fromId, isNarrative) {
 const TRACK_COLOR = { LIVE: "#4f6f52", QUIET: "#b07d2f" };
 const trackColor = (state) => TRACK_COLOR[state] || "#5a6b73";
 
+const MS_PER_DAY = 86_400_000;
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Fixes are UTC epoch ms; format in UTC so the calendar day never shifts.
+function fmtDate(t) {
+  const d = new Date(t);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+// Great-circle km between [lat, lon] pairs — for cumulative distance along the track.
+function haversineKm(a, b) {
+  const R = 6371;
+  const rad = Math.PI / 180;
+  const dLat = (b[0] - a[0]) * rad;
+  const dLon = (b[1] - a[1]) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a[0] * rad) * Math.cos(b[0] * rad) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
 let journeyMap = null; // current Leaflet instance — torn down before each remount
+let scrubTimer = null; // play-animation interval — cleared on remount / pause
 
 function mountMap(j, state) {
   const el = document.getElementById("journey-map");
+  const scrub = document.getElementById("map-scrubber");
+  // Stop any in-flight playback before tearing the old map down.
+  if (scrubTimer) {
+    clearInterval(scrubTimer);
+    scrubTimer = null;
+  }
   if (!el) return;
+  if (scrub) scrub.innerHTML = "";
 
   // Leaflet refuses to re-init a container; always tear the old one down first.
   if (journeyMap) {
@@ -293,6 +320,7 @@ function mountMap(j, state) {
 
   // Track points are [lon, lat]; Leaflet wants [lat, lon].
   const latlngs = pts.map((p) => [p[1], p[0]]);
+  const times = j.times && j.times.length === latlngs.length ? j.times : null;
   const start = latlngs[0];
   const end = latlngs[latlngs.length - 1];
   const color = trackColor(state);
@@ -310,13 +338,39 @@ function mountMap(j, state) {
   L.control.layers({ Street: street, Satellite: satellite }, null, { collapsed: false }).addTo(map);
   journeyMap = map;
 
-  const line = L.polyline(latlngs, {
+  // The full route, drawn faint, with a brighter "travelled so far" overlay the
+  // scrubber reveals. At rest the bright line covers the whole route (latest fix).
+  const base = L.polyline(latlngs, {
     color,
-    weight: 3,
+    weight: 2.5,
+    opacity: 0.3,
+    lineJoin: "round",
+    lineCap: "round",
+  }).addTo(map);
+  const progress = L.polyline(latlngs, {
+    color,
+    weight: 3.5,
     opacity: 0.95,
     lineJoin: "round",
     lineCap: "round",
   }).addTo(map);
+
+  // Subtle GPS acquisition points — thinned to ~40 so inflections are visible
+  // without crowding, each revealing its fix date on hover.
+  if (times) {
+    const dotStep = Math.max(1, Math.ceil(latlngs.length / 40));
+    for (let i = dotStep; i < latlngs.length - 1; i += dotStep) {
+      L.circleMarker(latlngs[i], {
+        radius: 2.5,
+        color: "#fff",
+        weight: 1,
+        fillColor: color,
+        fillOpacity: 0.6,
+      })
+        .addTo(map)
+        .bindTooltip(fmtDate(times[i]), { direction: "top" });
+    }
+  }
 
   L.circleMarker(start, {
     radius: 5,
@@ -344,9 +398,86 @@ function mountMap(j, state) {
     offset: [0, -6],
   });
 
-  map.fitBounds(line.getBounds(), { padding: [28, 28], maxZoom: 11 });
+  // The scrubber's moving position marker (non-interactive — the readout carries
+  // the detail). Sits above everything so it's never hidden by the track.
+  const posIcon = L.divIcon({
+    className: "scrub-marker",
+    html: `<span class="scrub-dot" style="--c:${color}"></span>`,
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+  const posMarker = L.marker(end, {
+    icon: posIcon,
+    keyboard: false,
+    interactive: false,
+    zIndexOffset: 1000,
+  }).addTo(map);
+
+  map.fitBounds(base.getBounds(), { padding: [28, 28], maxZoom: 11 });
   // The container was just inserted; ensure Leaflet measured it correctly.
   setTimeout(() => map && map.invalidateSize(), 0);
+
+  mountScrubber(scrub, { latlngs, times, progress, posMarker });
+}
+
+// The time scrubber: drag to rewind the journey, ▶ to replay it. A bright line
+// recedes over the faint route and the position marker tracks along, while the
+// readout names the date, distance covered, and day reached. Needs aligned
+// timestamps and at least a few points; otherwise the map stands alone.
+function mountScrubber(scrub, { latlngs, times, progress, posMarker }) {
+  if (!scrub || !times || latlngs.length < 3) return;
+
+  const last = latlngs.length - 1;
+  const cum = [0];
+  for (let i = 1; i <= last; i++) cum[i] = cum[i - 1] + haversineKm(latlngs[i - 1], latlngs[i]);
+  const totalDays = Math.max(1, Math.round((times[last] - times[0]) / MS_PER_DAY));
+
+  scrub.innerHTML = `
+    <button class="scrub-play" type="button" aria-label="Replay journey">▶</button>
+    <input class="scrub-range" type="range" min="0" max="${last}" value="${last}" step="1"
+           aria-label="Journey timeline" />
+    <div class="scrub-readout" aria-live="polite"></div>`;
+  const range = scrub.querySelector(".scrub-range");
+  const readout = scrub.querySelector(".scrub-readout");
+  const playBtn = scrub.querySelector(".scrub-play");
+
+  const setIndex = (raw) => {
+    const i = Math.max(0, Math.min(last, raw | 0));
+    posMarker.setLatLng(latlngs[i]);
+    progress.setLatLngs(latlngs.slice(0, i + 1));
+    const dayN = Math.round((times[i] - times[0]) / MS_PER_DAY);
+    readout.innerHTML = `<strong>${fmtDate(times[i])}</strong> · ${Math.round(
+      cum[i],
+    ).toLocaleString()} km · day ${dayN}/${totalDays}`;
+  };
+
+  const stopPlay = () => {
+    if (scrubTimer) {
+      clearInterval(scrubTimer);
+      scrubTimer = null;
+    }
+    playBtn.textContent = "▶";
+    playBtn.classList.remove("is-playing");
+  };
+  const startPlay = () => {
+    let i = Number(range.value) >= last ? 0 : Number(range.value); // replay from start if at end
+    playBtn.textContent = "❚❚";
+    playBtn.classList.add("is-playing");
+    scrubTimer = setInterval(() => {
+      range.value = String(i);
+      setIndex(i);
+      if (i >= last) return stopPlay();
+      i++;
+    }, 45);
+  };
+
+  range.addEventListener("input", () => {
+    stopPlay();
+    setIndex(Number(range.value));
+  });
+  playBtn.addEventListener("click", () => (scrubTimer ? stopPlay() : startPlay()));
+
+  setIndex(last); // rest at the latest fix
 }
 
 // --------------------------------------------------------------------------

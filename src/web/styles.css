@@ -85,6 +85,24 @@ nav { display: flex; gap: 0.4rem; }
 @keyframes pulse-ring { 0% { transform: scale(0.7); opacity: 0.6; } 100% { transform: scale(2.2); opacity: 0; } }
 .landmark-tip.leaflet-tooltip { font-family: var(--serif); font-weight: 600; color: #3f3c34; }
 
+/* Time scrubber — drag to rewind the journey, ▶ to replay it. */
+.map-scrubber { display: flex; align-items: center; gap: 0.7rem; padding: 0.5rem 0.9rem; background: var(--card); border-top: 1px solid var(--line); font-family: var(--sans); }
+.map-scrubber:empty { display: none; }
+.scrub-play { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; font-size: 0.68rem; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
+.scrub-play:hover { background: var(--paper-2); }
+.scrub-play.is-playing { color: var(--moss); border-color: var(--moss); }
+.scrub-range { flex: 1 1 auto; min-width: 0; accent-color: var(--moss); cursor: pointer; }
+.scrub-readout { flex: none; min-width: 13.5rem; text-align: right; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.scrub-readout strong { color: var(--ink); font-weight: 600; }
+
+/* The scrubber's moving position marker (sits above the track). */
+.scrub-dot { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25), 0 1px 4px rgba(0, 0, 0, 0.4); }
+
+@media (max-width: 640px) {
+  .map-scrubber { flex-wrap: wrap; }
+  .scrub-readout { min-width: 0; flex: 1 1 100%; text-align: left; order: 3; }
+}
+
 .body { padding: 1.2rem 1.6rem 1.6rem; }
 .narrative { font-family: var(--serif); font-size: 1.22rem; line-height: 1.55; margin: 0 0 1rem; }
 .control-line { font-size: 1rem; color: var(--ink); margin: 0 0 1rem; }

@@ -63,6 +63,8 @@ export interface AnimalPayload {
   narrative: string | null;
   journey: {
     points: Array<[number, number]>; // [lon, lat], downsampled
+    /** Epoch ms per point, aligned 1:1 with `points` — drives the time scrubber. */
+    times: number[];
     bbox: BBox | null;
     totalKm: number;
     daysTracked: number;
@@ -204,6 +206,10 @@ export class RosterService {
 
     const action = chooseAction(ind, status, packet, { successor, connection });
 
+    // One downsample, shared by the polyline and the time scrubber, so points and
+    // their timestamps stay aligned 1:1.
+    const sampled = downsample(fixes, 140);
+
     // The animal this follower was handed from, named so the view can carry the
     // thread. Never a retired animal (resolutions are visible by design).
     let continuedFrom: AnimalPayload["continuedFrom"] = null;
@@ -247,7 +253,8 @@ export class RosterService {
       // Control arm sees no individuated narrative — that's the experiment.
       narrative: arm === "narrative" ? gen.text : null,
       journey: {
-        points: downsample(fixes, 140).map((f) => [f.lon, f.lat]),
+        points: sampled.map((f) => [f.lon, f.lat]),
+        times: sampled.map((f) => f.timestamp),
         bbox: boundingBox(fixes),
         totalKm: Math.round(packet.totalTrackKm),
         daysTracked: Math.round(packet.daysTracked),
